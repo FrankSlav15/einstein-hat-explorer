@@ -295,3 +295,155 @@ select { background: var(--panel); max-width: 100%; }
   .legend svg { width: 1.55rem; height: 1.55rem; }
   .legend figure { min-width: 1.6rem; }
 }
+
+/* ------------------------------------------------------------------
+   Phone layout (phone.js sets body.phone: width <= 600px, or a landscape
+   phone). A one-row top bar, the map full screen, a bottom toolbar, and
+   one bottom sheet at a time. Tablet and desktop never get body.phone. */
+.phone-bar, .sheet-grip, .tiling-select, .phone-more { display: none; }
+body.phone { --bar-h: calc(58px + env(safe-area-inset-bottom)); --gap: 8px; }
+html:has(body.phone), body.phone { height: 100dvh; }
+body.phone button, body.phone select, body.phone a, body.phone label { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+body.phone select, body.phone input, body.phone button { font-size: 16px; }
+
+/* Top bar: tiling menu, Essay, About. */
+body.phone .top { top: max(var(--gap), env(safe-area-inset-top)); left: max(var(--gap), env(safe-area-inset-left)); right: max(var(--gap), env(safe-area-inset-right)); }
+body.phone .top .title { width: 100%; max-width: none; padding: 6px; display: flex; align-items: center; gap: 6px; border-radius: 12px; }
+body.phone .title .back, body.phone .title p.hint, body.phone .title .credit, body.phone .switch { display: none; }
+body.phone .title h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); margin: 0; }
+body.phone .title .row { margin: 0; flex: 1; flex-wrap: nowrap; gap: 6px; min-width: 0; }
+body.phone .tiling-select {
+  display: block; flex: 1; min-width: 0; height: 44px; padding: 0 2rem 0 0.75rem;
+  font-family: Georgia, "Times New Roman", serif; font-size: 17px; color: var(--h1);
+  border: 1px solid var(--ring); border-radius: 9px; background-color: transparent;
+  -webkit-appearance: none; appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 17px) 19px, calc(100% - 12px) 19px; background-size: 5px 5px; background-repeat: no-repeat;
+}
+body.phone .mode-toggle { height: 44px; padding: 0 0.9rem; flex: none; font-size: 15px; }
+body.phone .title .about-open { position: static; order: 3; height: 44px; padding: 0 0.7rem; font-size: 15px; flex: none; border-radius: 9px; }
+
+/* Bottom toolbar. */
+body.phone .phone-bar {
+  display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 21;
+  height: var(--bar-h); padding: 0 max(4px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(4px, env(safe-area-inset-left));
+  background: var(--panel); border-top: 1px solid var(--rule); box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+body.phone .phone-bar button {
+  flex: 1; border: none; border-radius: 10px; margin: 4px 2px; padding: 0; min-height: 50px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  font-size: 12px; color: var(--h3); letter-spacing: 0.02em;
+}
+body.phone .phone-bar svg { width: 24px; height: 24px; }
+body.phone .phone-bar button[aria-expanded="true"] { background: var(--ring); color: var(--link); }
+body.phone.essay-on .phone-bar { display: none; }
+
+/* Recentre (and the compass once turned) stay; pinch and twist zoom and turn. */
+body.phone .zoom { bottom: calc(var(--bar-h) + 10px); right: max(10px, env(safe-area-inset-right)); border-radius: 50%; }
+body.phone .zoom #zoom-in, body.phone .zoom #zoom-out, body.phone .zoom #turn-left, body.phone .zoom #turn-right { display: none; }
+body.phone .zoom button { width: 44px; height: 44px; }
+body.phone .zoom #compass:not([hidden]) + * { border-top: 1px solid var(--rule); }
+body.phone.sheet-open .zoom { display: none; }
+body.phone .status { bottom: calc(var(--bar-h) + 14px); }
+
+/* Sheets: the options (split into Shape and Options), the colours, stats
+   and diffraction. Hidden until their toolbar button opens them. */
+body.phone .options, body.phone .legend, body.phone .stats, body.phone .diff { display: none; }
+body.phone[data-sheet="shape"] .options, body.phone[data-sheet="options"] .options,
+body.phone[data-sheet="colours"] .legend, body.phone[data-sheet="stats"] .stats:not([hidden]), body.phone[data-sheet="diff"] .diff:not([hidden]) {
+  display: block; position: fixed; z-index: 20; top: auto; transform: none;
+  left: max(0px, env(safe-area-inset-left)); right: max(0px, env(safe-area-inset-right)); bottom: var(--bar-h);
+  width: auto; max-width: none; margin: 0; max-height: min(55dvh, calc(100dvh - var(--top-h, 70px) - var(--bar-h) - 12px));
+  overflow-y: auto; overscroll-behavior: contain; padding: 0 16px 14px;
+  border-radius: 16px 16px 0 0; border-bottom: none; font-size: 16px;
+  animation: sheet-up 0.18s ease-out;
+}
+body.phone.essay-on[data-sheet] .stats, body.phone.essay-on[data-sheet] .diff { bottom: 0; }
+@keyframes sheet-up { from { transform: translateY(24px); opacity: 0.4; } }
+body.phone .sheet-grip {
+  display: flex; align-items: center; position: sticky; top: 0; z-index: 1; min-height: 48px; margin: 0 -16px 6px; padding: 10px 6px 0 16px;
+  background: var(--panel); border-bottom: 1px solid var(--rule); touch-action: none;
+}
+body.phone .sheet-grip .bar-handle { position: absolute; top: 6px; left: 50%; width: 40px; height: 5px; margin-left: -20px; border-radius: 3px; background: var(--rule); }
+body.phone .sheet-grip .sheet-title { flex: 1; font-weight: normal; color: var(--h1); font-size: 17px; }
+body.phone .sheet-grip .sheet-close { width: 44px; height: 44px; border: none; font-size: 26px; line-height: 1; padding: 0; color: var(--muted); }
+body.phone .stats-head .linkish, body.phone .diff .stats-head { display: none; }
+body.phone .stats-head { display: none; }
+body.phone .sheet-grip .t-options, body.phone[data-sheet="options"] .sheet-grip .t-shape { display: none; }
+body.phone[data-sheet="options"] .sheet-grip .t-options { display: inline; }
+body.phone .options .head { display: none; }
+body.phone .options .body { display: flex !important; margin: 0 !important; gap: 10px; }
+body.phone[data-sheet="shape"] .options .body > .section:not(.shape-section),
+body.phone[data-sheet="options"] .options .body > .shape-section { display: none; }
+body.phone[data-sheet="shape"] .shape-section { border-top: none; padding-top: 0; }
+body.phone[data-sheet="options"] .options .body > .section:not(.shape-section):not([hidden]) ~ .section { border-top: 1px solid var(--rule); }
+
+/* Roomy controls inside the sheets. */
+body.phone .options label { font-size: 16px; min-height: 44px; gap: 12px; }
+body.phone .options .section-title { font-size: 13px; }
+body.phone .options .hint { font-size: 13px; }
+body.phone .options input[type="checkbox"], body.phone .options input[type="radio"] { width: 22px; height: 22px; }
+body.phone .options .inline { gap: 0 1.4rem; }
+body.phone .options .linkish, body.phone .legend .linkish, body.phone .stats .linkish, body.phone .diff .linkish { font-size: 16px; min-height: 44px; padding: 0 2px; }
+body.phone .options select, body.phone .legend select { min-height: 44px; }
+body.phone .options button:not(.linkish):not(.sheet-close) { min-height: 40px; }
+body.phone .slider { font-size: 16px; gap: 4px 10px; }
+body.phone .slider output { font-size: 15px; color: var(--h1); }
+body.phone .shape-section .slider > span { font-size: 15px; color: var(--muted); }
+body.phone .shape-section .slider output { font-size: 18px; }
+/* Big, thumb-friendly sliders. */
+body.phone input[type="range"] { -webkit-appearance: none; appearance: none; height: 44px; background: transparent; touch-action: pan-y; }
+body.phone input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--ring); }
+body.phone input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; margin-top: -12px; border-radius: 50%; background: var(--link); border: 3px solid var(--panel); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+body.phone input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--ring); }
+body.phone input[type="range"]::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--link); border: 3px solid var(--panel); }
+/* The named forms become chips, scrolling sideways if they need to. */
+body.phone .ticks, body.phone .ticks.placed {
+  display: flex; position: static; height: auto; gap: 8px; margin: 2px -16px 0; padding: 2px 16px 6px;
+  overflow-x: auto; scrollbar-width: none; justify-content: flex-start;
+}
+body.phone .ticks::-webkit-scrollbar { display: none; }
+body.phone .ticks.zero { justify-content: center; }
+body.phone .ticks button, body.phone .ticks.placed button, body.phone .ticks.zero button {
+  position: static; transform: none !important; flex: none; min-height: 44px; min-width: 44px; padding: 0 16px;
+  border: 1px solid var(--ring); border-radius: 999px; font-size: 15px; color: var(--h3); background: none; white-space: nowrap;
+}
+body.phone .ticks button.on { background: var(--link); border-color: var(--link); color: var(--panel); }
+
+/* Colours: menu, dice and theme on one row; the key scrolls sideways. */
+body.phone .legend-head { gap: 8px; }
+body.phone .legend-head select { min-width: 0; }
+body.phone .legend .dice, body.phone .theme-toggle { width: 44px; height: 44px; }
+body.phone #legend-toggle { display: none; }
+body.phone .legend .groups { display: flex !important; gap: 6px; overflow-x: auto; margin: 0 -16px; padding: 2px 16px 4px; scrollbar-width: none; }
+body.phone .legend .group { flex: none; min-height: 44px; }
+body.phone .legend .strip { width: 100%; }
+body.phone .legend figcaption { font-size: 11px; }
+
+/* Stats and diffraction fill their sheet. */
+body.phone .stats { font-size: 15px; }
+body.phone .stats .hint, body.phone .diff .hint { font-size: 13px; }
+body.phone #diff-canvas { width: min(100%, 300px); height: auto; aspect-ratio: 1; margin: 0 auto; }
+
+/* About opens above everything, with the back link and credits. */
+body.phone .about { z-index: 30; max-height: calc(100dvh - 2 * max(12px, env(safe-area-inset-top))); }
+body.phone .about .close { width: 44px; height: 44px; }
+body.phone .phone-more { display: block; border-top: 1px solid var(--rule); padding: 0.6rem 0 0.8rem; font-size: 0.85rem; color: var(--muted); }
+body.phone .phone-more .back { display: inline-block; padding: 0.4rem 0; }
+body.phone .phone-more p { margin: 0.2rem 0 0; }
+
+/* Landscape phone: the sheet keeps to the left so the map shows beside it. */
+@media (min-width: 601px) {
+  body.phone .top .title { width: auto; max-width: 460px; }
+  body.phone .phone-bar { left: 50%; right: auto; transform: translateX(-50%); width: min(460px, 100vw); border: 1px solid var(--rule); border-bottom: none; border-radius: 14px 14px 0 0; }
+  body.phone[data-sheet="shape"] .options, body.phone[data-sheet="options"] .options,
+  body.phone[data-sheet="colours"] .legend, body.phone[data-sheet="stats"] .stats:not([hidden]), body.phone[data-sheet="diff"] .diff:not([hidden]) {
+    left: max(8px, env(safe-area-inset-left)); right: auto; width: 400px; bottom: var(--bar-h);
+    max-height: calc(100dvh - var(--top-h, 60px) - var(--bar-h) - 10px);
+    border-bottom: 1px solid var(--rule); border-radius: 16px 16px 0 0;
+  }
+}
+body.phone .shape-section .slider > span:first-child { display: none; }
+body.phone .shape-section .slider output { grid-column: 1 / -1; text-align: center; }
+body.phone .ticks.placed button { flex: 1 0 auto; padding: 0 12px; }

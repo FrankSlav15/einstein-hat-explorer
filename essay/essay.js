@@ -9,6 +9,17 @@
   var panel = document.getElementById('essay'), scroller = document.getElementById('essay-scroll');
   var dots = document.getElementById('essay-dots'), toggle = document.getElementById('mode-toggle');
   var fold = document.getElementById('essay-fold');
+  // Phone portrait: a bottom sheet with snap points showing one section at
+  // a time, with prev/next and sideways swipes (phone.js sets the class).
+  var head = panel.querySelector('.essay-head');
+  head.insertAdjacentHTML('beforebegin', '<div class="essay-grip" id="essay-grip" aria-hidden="true"><span></span></div>');
+  head.insertAdjacentHTML('beforeend',
+    '<div class="essay-pnav"><button type="button" id="essay-prev" aria-label="Previous section">‹</button>' +
+    '<span class="essay-count" id="essay-count"></span>' +
+    '<button type="button" id="essay-next" aria-label="Next section">›</button>' +
+    '<button type="button" id="essay-snap" aria-label="Taller">▴</button></div>');
+  var count = document.getElementById('essay-count'), snapBtn = document.getElementById('essay-snap');
+  function sheet() { return document.body.classList.contains('phone-portrait'); }
   var on = false, active = -1, pending = 0, sections = [], quietUntil = 0;
   // Scrolls the code starts itself do not pick a section on the way.
   function quiet(ms) { quietUntil = performance.now() + (ms || 1200); }
@@ -45,7 +56,7 @@
   var lastJump = 0;
   Array.prototype.forEach.call(scroller.querySelectorAll('img'), function (img) {
     img.addEventListener('load', function () {
-      if (on && active >= 0 && performance.now() - lastJump < 4000) { quiet(300); scroller.scrollTop = secTop(active); }
+      if (on && !sheet() && active >= 0 && performance.now() - lastJump < 4000) { quiet(300); scroller.scrollTop = secTop(active); }
     });
   });
   dots.innerHTML = E.sections.map(function (s, i) {
@@ -57,6 +68,12 @@
   function offset() {
     if (!on || panel.classList.contains('folded')) return [0, 0];
     var r = panel.getBoundingClientRect();
+    if (sheet()) {
+      // Centre the scene in the map left between the top bar and the sheet.
+      var H = window.innerHeight, top = document.querySelector('.top').getBoundingClientRect().bottom;
+      var sh = Math.min(sheetPx(snap), H * 0.56);
+      return [0, (top + (H - sh)) / 2 - H / 2];
+    }
     return narrow() ? [0, -r.height / 2] : [-r.width / 2, 0];
   }
   function applyScene(i, instant) {
@@ -75,6 +92,11 @@
     active = i;
     sections.forEach(function (el, k) { el.classList.toggle('active', k === i); });
     Array.prototype.forEach.call(dots.children, function (b, k) { b.classList.toggle('on', k === i); });
+    var s = E.sections[i] || {};
+    count.textContent = (i + 1) + ' / ' + sections.length + (s.label ? ' · ' + s.label : '');
+    panel.classList.toggle('at-first', i === 0);
+    panel.classList.toggle('at-last', i === sections.length - 1);
+    if (sheet()) scroller.scrollTop = 0;
     applyScene(i, opts.instant);
     map.changed();
   }
@@ -83,6 +105,7 @@
     var el = sections[i];
     if (!el) return;
     quiet();
+    if (sheet()) { scroller.scrollTop = 0; return; }
     scroller.scrollTo({ top: secTop(i), behavior: 'smooth' });
   }
 
@@ -95,7 +118,7 @@
     return best;
   }
   scroller.addEventListener('scroll', function () {
-    if (!on) return;
+    if (!on || sheet()) return;
     clearTimeout(pending);
     if (performance.now() < quietUntil) return;
     pending = setTimeout(function () { if (performance.now() >= quietUntil) activate(pick()); }, 180);
@@ -146,6 +169,48 @@
     if (e.key === 'PageDown' || (e.key === 'j' && !e.ctrlKey)) { e.preventDefault(); var n = Math.min(sections.length - 1, active + 1); scrollTo(n); activate(n); }
     if (e.key === 'PageUp' || (e.key === 'k' && !e.ctrlKey)) { e.preventDefault(); var p = Math.max(0, active - 1); scrollTo(p); activate(p); }
   });
+
+  /* ---------------------------------------------------------- phone sheet */
+  var snaps = ['peek', 'half', 'full'], snap = 'half';
+  function sheetPx(s) {
+    var H = window.innerHeight;
+    return s === 'peek' ? H * 0.32 : s === 'half' ? H * 0.52 : H;
+  }
+  function setSnap(s, refly) {
+    snap = s;
+    panel.dataset.snap = s;
+    snapBtn.textContent = s === 'full' ? '▾' : '▴';
+    snapBtn.setAttribute('aria-label', s === 'full' ? 'Shorter' : 'Taller');
+    if (refly && on && active >= 0) setTimeout(function () { applyScene(active); }, 230);
+  }
+  setSnap('half');
+  function step(d) {
+    var n = Math.max(0, Math.min(sections.length - 1, active + d));
+    if (n !== active) { scrollTo(n); activate(n); }
+  }
+  document.getElementById('essay-prev').addEventListener('click', function () { step(-1); });
+  document.getElementById('essay-next').addEventListener('click', function () { step(1); });
+  snapBtn.addEventListener('click', function () { setSnap(snap === 'full' ? 'peek' : snaps[snaps.indexOf(snap) + 1], true); });
+  // Drag the grip or head up or down to snap; a tap on the grip steps taller.
+  var y0 = null;
+  [document.getElementById('essay-grip'), head].forEach(function (el) {
+    el.addEventListener('touchstart', function (e) { y0 = e.touches[0].clientY; }, { passive: true });
+    el.addEventListener('touchend', function (e) {
+      if (y0 === null || !sheet()) return;
+      var dy = e.changedTouches[0].clientY - y0, k = snaps.indexOf(snap); y0 = null;
+      if (dy < -30 && k < 2) setSnap(snaps[k + 1], true);
+      else if (dy > 30 && k > 0) setSnap(snaps[k - 1], true);
+      else if (Math.abs(dy) < 6 && el.id === 'essay-grip') setSnap(snaps[(k + 1) % 3], true);
+    });
+  });
+  // Swipe sideways on the text for the next or previous section.
+  var t0 = null;
+  scroller.addEventListener('touchstart', function (e) { t0 = [e.touches[0].clientX, e.touches[0].clientY]; }, { passive: true });
+  scroller.addEventListener('touchend', function (e) {
+    if (!t0 || !sheet()) return;
+    var dx = e.changedTouches[0].clientX - t0[0], dy = e.changedTouches[0].clientY - t0[1]; t0 = null;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > 1.5 * Math.abs(dy)) step(dx < 0 ? 1 : -1);
+  }, { passive: true });
 
   window.essayUI = {
     on: function () { return on; },

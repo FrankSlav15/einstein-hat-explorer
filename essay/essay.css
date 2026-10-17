@@ -84,3 +84,49 @@ body.essay-on.essay-folded .top, body.essay-on.essay-folded .zoom { right: max(1
   body.essay-on .stats, body.essay-on .diff { display: none; }
   .stats, .diff { right: 64px; max-width: calc(100vw - 90px); }
 }
+
+/* Phone portrait (phone.js sets body.phone-portrait): a bottom sheet with
+   three heights, one section at a time, prev/next in its head. */
+.essay-grip, .essay-pnav { display: none; }
+body.phone .mode-toggle[aria-pressed="true"] { color: var(--panel); }
+body.phone-portrait .essay {
+  top: auto; left: 0; right: 0; bottom: 0; width: auto; border-left: none; border-top: 1px solid var(--rule);
+  border-radius: 16px 16px 0 0; box-shadow: 0 -6px 24px rgba(0,0,0,0.15);
+  height: 52dvh; transition: height 0.22s ease; padding-bottom: env(safe-area-inset-bottom);
+}
+body.phone-portrait .essay[data-snap="peek"] { height: 32dvh; }
+body.phone-portrait .essay[data-snap="full"] { height: calc(100dvh - var(--top-h, 64px) - 6px); }
+body.phone-portrait .essay-grip { display: block; height: 16px; flex: none; position: relative; touch-action: none; cursor: pointer; }
+body.phone-portrait .essay-grip span { position: absolute; top: 6px; left: 50%; width: 40px; height: 5px; margin-left: -20px; border-radius: 3px; background: var(--rule); }
+body.phone-portrait .essay-head { padding: 0 6px 4px 14px; gap: 4px; touch-action: none; }
+body.phone-portrait .essay-fold, body.phone-portrait .essay-dots, body.phone-portrait .essay-kicker { display: none; }
+body.phone-portrait .essay-pnav { display: flex; align-items: center; gap: 4px; width: 100%; }
+body.phone-portrait .essay-pnav button { width: 44px; height: 44px; flex: none; padding: 0; font-size: 26px; line-height: 1; border-radius: 50%; }
+body.phone-portrait .essay-pnav #essay-snap { font-size: 16px; border: none; color: var(--muted); }
+body.phone-portrait .essay.at-first #essay-prev, body.phone-portrait .essay.at-last #essay-next { opacity: 0.3; pointer-events: none; }
+body.phone-portrait .essay-count { flex: 1; min-width: 0; text-align: center; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.phone-portrait .essay-scroll { padding: 0 16px 24px; overscroll-behavior: contain; touch-action: pan-y; }
+body.phone-portrait .essay-sec:not(.active) { display: none; }
+body.phone-portrait .essay-sec { margin: 0.4rem -0.4rem; padding: 0.4rem 0.4rem 0.2rem; opacity: 1; background: none !important; border: none; }
+body.phone-portrait .essay-sec .sec-label { display: none; }
+body.phone-portrait .essay-sec p { font-size: 16px; line-height: 1.55; }
+body.phone-portrait .essay:not(.at-first) .essay-title, body.phone-portrait .essay:not(.at-last) .essay-credits { display: none; }
+body.phone-portrait .essay-title h2 { font-size: 1.3rem; margin-top: 0.3rem; }
+body.phone-portrait.essay-on .top { right: max(8px, env(safe-area-inset-right)); }
+/* The colour key rides just above the sheet, as one sideways strip. */
+body.phone.essay-on .legend {
+  display: block; position: fixed; left: 8px; right: 8px; max-width: none; z-index: 4; padding: 4px 0 2px; max-height: none; overflow: visible;
+  bottom: calc(52dvh + 8px); transition: bottom 0.22s ease;
+}
+body.phone.essay-on .legend .legend-head, body.phone.essay-on .legend .sheet-grip, body.phone.essay-on #legend-body > :not(.groups):not(.strip) { display: none; }
+body.phone.essay-on #legend-body { margin: 0; }
+body.phone.essay-on .legend .groups { margin: 0; padding: 0 6px; }
+body.phone.essay-on .legend .group { min-height: 0; }
+body.phone-portrait.essay-on:has(.essay[data-snap="peek"]) .legend { bottom: calc(32dvh + 8px); }
+body.phone-portrait.essay-on:has(.essay[data-snap="full"]) .legend { display: none; }
+body.phone.essay-on .zoom { display: none; }
+/* Landscape phone: the essay stays a side panel; the key sits bottom left. */
+body.phone:not(.phone-portrait).essay-on .legend { bottom: max(8px, env(safe-area-inset-bottom)); right: calc(var(--essay-w) + 8px); }
+body.phone:not(.phone-portrait) .essay-head { min-height: 44px; }
+body.phone:not(.phone-portrait) .essay-dots button { width: 12px; height: 12px; }
+body.phone:not(.phone-portrait) .essay-fold { min-width: 44px; min-height: 44px; }
