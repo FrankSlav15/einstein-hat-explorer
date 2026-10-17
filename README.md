@@ -77,7 +77,7 @@ tiles/spectre/, tiles/hat-extended/, tiles/krinkle/   David's sibling pages
 
 ## How the probe maps are computed
 
-Everything is computed in the hat worker (`tiles/hat/probes.js`) from the exact positions in David's engine, evaluated at the hat shape Tile(1, √3). Each chunk is analysed with a margin, so neighbour relations are correct across chunk edges, and the classes are sent to the shader as extra words per tile. Some checks against the article: flipped/all ≈ 0.1274 (1/(1+φ⁴) = 0.1273); stacks come only as pairs and straight triples; the nearest-flip distance takes 7 discrete values from 1.561 to 3.031 article units (the article gives 1.57–3.35).
+Everything is computed in the hat worker (`tiles/hat/probes.js`) from the exact positions in David's engine, evaluated at the hat shape Tile(1, √3). Each chunk is analysed with a margin, so neighbour relations are correct across chunk edges, and the classes are sent to the shader as extra words per tile. Some checks against the article: flipped/all ≈ 0.1274 (1/(1+φ⁴) = 0.1273); stacks come only as pairs and straight triples; the nearest-flip distance takes 7 discrete values from 1.561 to 3.031 article units (the article text was corrected to match in Oct 2026).
 
 ## Credits
 

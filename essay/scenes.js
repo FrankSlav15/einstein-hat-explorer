@@ -82,7 +82,7 @@ window.ESSAY = {
       "id": "flipped",
       "label": "The rare face",
       "paras": [
-        "One face is rare. The flipped hats are about one in eight. In the large they tend to 1/φ⁴, a power of the same number that governs the pentagon and the sunflower. They do not drift."
+        "One face is rare. The flipped hats are about one in eight. In the large, every flipped hat is matched by φ⁴ unflipped ones — a power of the same number that governs the pentagon and the sunflower. They do not drift."
       ],
       "images": [
         {
@@ -166,7 +166,7 @@ window.ESSAY = {
       "id": "distance",
       "label": "Distance to the nearest flip",
       "paras": [
-        "Distance to the nearest flip is not a landscape. No hat is far. The range is 1.57 to 3.35, a few discrete shells, then another flip. The rare face is not a scattering of accidents. It is a lattice with short spacing, sparse enough to be counted, dense enough that the ordinary tiles never escape it."
+        "Distance to the nearest flip is not a landscape. No hat is far. The range is about 1.56 to 3.03, seven discrete shells, then another flip. The rare face is not a scattering of accidents. It is a lattice with short spacing, sparse enough to be counted, dense enough that the ordinary tiles never escape it."
       ],
       "images": [
         {
