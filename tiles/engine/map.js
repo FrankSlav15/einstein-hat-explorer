@@ -950,7 +950,66 @@
     }
     function groupColours() {
       if (sel.indexOf('custom:') === 0) return customs[sel.slice(7)].map(hex);
+      if (PAL) return palGroupColours();
       return presets[sel].colours(dark);
+    }
+
+    /* Palettes (the Hat page passes cfg.palettes = TilePalettes). The
+       selection then has two parts: sel, the preset that says what is
+       coloured ("colour by"), and pal, the palette that says how. A
+       palette's own colours can be overridden class by class (over, kept
+       per colour-by and palette), and the outline (ink) and background can
+       be set by hand. In essay mode the article's colours are used and the
+       user's choices wait until Explore mode returns. */
+    var PAL = cfg.palettes || null;
+    var pal = 'original', over = {}, ink = { colour: null, width: null }, userBg = null, solo = -1;
+    var userPals = [], sharedPal = null, essay = null, keyTap = 'recolour';
+    function palById(id) {
+      if (!PAL || !id) return null;
+      if (id.indexOf('u:') === 0) {
+        var u = userPals.filter(function (x) { return 'u:' + x.name === id; })[0];
+        return u ? PAL.fromUser(u) : null;
+      }
+      if (id === 'x') return sharedPal ? PAL.fromUser(sharedPal) : null;
+      return PAL.get(id) || null;
+    }
+    function palId() { return essay ? essay.pal : pal; }
+    function activePal() { return palById(palId()) || PAL.get('original'); }
+    function overKey() { return sel + '|' + pal; }
+    // Each group of the grouping, with whether its tiles are all mirrored.
+    function groupInfo(g) {
+      var cl = classList(), out = [];
+      for (var q = 0; q < g.n; q++) out.push({ flip: true, caption: '' });
+      cl.forEach(function (c, k) { var o = out[g.of(k)]; if (!o) return; if (!c.flip) o.flip = false; if (!o.caption) o.caption = c.caption; });
+      return out;
+    }
+    function palBase() {
+      var g = currentGrouping(), P = activePal();
+      var cols = PAL.colours(P, { grouping: g, groups: groupInfo(g), dark: dark,
+        original: presets[sel].colours(dark), preset: function (id) { return presets[id].colours(dark); } });
+      if (!essay && userBg && g.field) { cols = cols.slice(); g.field.forEach(function (k) { cols[k] = hex(userBg); }); }
+      return cols;
+    }
+    function palGroupColours() {
+      var cols = palBase();
+      var o = !essay && over[overKey()];
+      if (o) cols = cols.map(function (c, q) { return o[q] ? hex(o[q]) : c; });
+      return cols;
+    }
+    function hasOver() { var o = over[overKey()]; return !!(o && o.some(Boolean)); }
+    function bgColour() {
+      if (!PAL || essay) return theme.bg;
+      if (userBg) return hex(userBg);
+      var P = activePal();
+      return P.bg || theme.bg;
+    }
+    // The tile outline: null colour means each tile picks the ink that
+    // contrasts with it (David's rule); width scales the 1 px line.
+    function inkNow() {
+      if (!PAL || essay) return { colour: null, width: 1 };
+      var P = activePal();
+      return { colour: ink.colour ? hex(ink.colour) : (P.edge || null),
+               width: ink.width !== null ? ink.width : (P.width || 1) };
     }
     // The classes the shader colours. A page whose classes depend on the
     // grouping, as Krinkle's do, passes a function of the grouping. A
@@ -959,6 +1018,11 @@
     function classMode() { var g = currentGrouping(); return g.mode !== undefined ? g.mode : cfg.classMode || 0; }
     function classColours() {
       var g = currentGrouping(), cols = groupColours();
+      // Highlight one group: the others fade towards the background.
+      if (PAL && !essay && solo >= 0 && solo < g.n) {
+        var bg = bgColour();
+        cols = cols.map(function (c, q) { return q === solo ? c : PAL.mix(c, bg, 0.78); });
+      }
       return classList().map(function (c, k) { return cols[g.of(k)]; });
     }
     // The zoom the page opens at, and the home button returns to. A page
@@ -987,8 +1051,26 @@
     }
 
     var schemeEl = document.getElementById('scheme');
+    // A preset can stand for a colour-by mode in a given palette, as David's
+    // Rainbow is the turn-and-hand mode in the Rainbow palette.
+    function aliasOf(id) { return PAL && presets[id] && presets[id].alias; }
+    function menuSel() {
+      var a = aliasOf(sel);
+      return a ? a.colourBy : sel;
+    }
     function renderSchemeSelect() {
       var html = '';
+      if (PAL && cfg.colourBy) {
+        cfg.colourBy.forEach(function (grp) {
+          html += '<optgroup label="' + grp.label + '">';
+          grp.ids.forEach(function (id) { if (presets[id]) html += '<option value="' + id + '">' + (presets[id].byName || presets[id].name) + '</option>'; });
+          html += '</optgroup>';
+        });
+        schemeEl.innerHTML = html;
+        schemeEl.value = menuSel();
+        renderPalettes();
+        return;
+      }
       cfg.groupings.forEach(function (g) {
         var items = cfg.presets.filter(function (p) { return p.grouping === g.id; });
         html += '<optgroup label="' + g.name + '">';
@@ -1001,7 +1083,9 @@
     }
     schemeEl.addEventListener('change', function () {
       sel = schemeEl.value;
+      solo = -1;
       saveOptions();
+      if (PAL) renderPalettes();
       renderLegend();
       changed();
     });
@@ -1044,6 +1128,15 @@
     }
     document.getElementById('random-colours').addEventListener('click', function () {
       var g = currentGrouping();
+      if (PAL) {
+        if (essay) return;
+        over[overKey()] = g.roll && Math.random() < 0.5 ? g.roll().map(toHex) : randomColours(g.n);
+        saveOptions();
+        renderSchemeSelect();
+        renderLegend();
+        changed();
+        return;
+      }
       customs[g.id] = g.roll && Math.random() < 0.5 ? g.roll().map(toHex) : randomColours(g.n);
       sel = 'custom:' + g.id;
       renderSchemeSelect();
@@ -1058,14 +1151,20 @@
     // rebuilding the key would close the picker.
     function setGroupColour(group, value, final) {
       var g = currentGrouping();
-      if (sel.indexOf('custom:') !== 0) {
+      if (PAL) {
+        if (essay) return;
+        var key = overKey();
+        if (!over[key] || over[key].length !== g.n) over[key] = Array.from({ length: g.n }, function () { return null; });
+        over[key][group] = value;
+      } else if (sel.indexOf('custom:') !== 0) {
         customs[g.id] = groupColours().map(toHex);
         sel = 'custom:' + g.id;
         renderSchemeSelect();
       }
-      customs[g.id][group] = value;
+      if (!PAL) customs[g.id][group] = value;
       if (final) {
         saveOptions();
+        if (PAL) renderPalettes();
         renderLegend();
         changed();
       } else {
@@ -1120,7 +1219,7 @@
       var l = lum(c);
       return contrast(l, lum(theme.edgeAlt)) > contrast(l, lum(theme.edge));
     }
-    function inkFor(c) { return inkAlt(c) ? theme.edgeAlt : theme.edge; }
+    function inkFor(c) { var k = inkNow().colour; if (k) return k; return inkAlt(c) ? theme.edgeAlt : theme.edge; }
 
     // A key with more groups than STRIP shows them as one strip of colour,
     // in order, since a tile for each would fill the screen. A click on the
@@ -1149,7 +1248,7 @@
       legendEl.hidden = !legendOpen;
       if (legendOpen && g.n > STRIP) {
         html += stripHtml(g, cols);
-        html += '<div><button type="button" class="linkish" id="reset-colours">Reset colours</button></div>';
+        html += linksHtml();
         html += '<input type="color" id="legend-colour" tabindex="-1" aria-hidden="true">';
       } else if (legendOpen) {
         var order = g.order || Array.from({ length: g.n }, function (x, i) { return i; });
@@ -1158,7 +1257,7 @@
         order.forEach(function (q) {
           // Six tiles to a row at most, so a big group wraps evenly.
           var count = classes.filter(function (c, k) { return g.of(k) === q; }).length;
-          html += '<button type="button" class="group" data-group="' + q + '" title="Pick a colour for these tiles"' +
+          html += '<button type="button" class="group' + (PAL && !essay && solo >= 0 ? (solo === q ? ' solo' : ' faded') : '') + '" data-group="' + q + '" title="' + (keyTap === 'highlight' ? 'Highlight these tiles' : 'Pick a colour for these tiles') + '"' +
             ' style="grid-template-columns: repeat(' + Math.min(count, 6) + ', auto)">';
           classes.forEach(function (c, k) {
             if (g.of(k) !== q) return;
@@ -1167,18 +1266,28 @@
           html += '</button>';
         });
         html += '</div>';
-        html += '<div><button type="button" class="linkish" id="reset-colours">Reset colours</button></div>';
+        html += linksHtml();
         html += '<input type="color" id="legend-colour" tabindex="-1" aria-hidden="true">';
       }
       legendEl.innerHTML = html;
+      if (PAL) renderCustom();
       var resetEl = document.getElementById('reset-colours');
-      if (resetEl) resetEl.addEventListener('click', resetColours);
+      if (resetEl) resetEl.addEventListener('click', PAL ? resetToPalette : resetColours);
+      if (PAL) wireKeyLinks();
       var picker = document.getElementById('legend-colour');
       if (!picker) return;
       var active = -1;
       picker.addEventListener('input', function () { if (active >= 0) setGroupColour(active, picker.value, false); });
       picker.addEventListener('change', function () { if (active >= 0) setGroupColour(active, picker.value, true); });
       function pick(q) {
+        if (PAL && essay) return;
+        if (PAL && keyTap === 'highlight') {
+          solo = solo === q ? -1 : q;
+          saveOptions();
+          renderLegend();
+          changed();
+          return;
+        }
         active = q;
         picker.value = toHex(groupColours()[active]);
         picker.click();
@@ -1193,6 +1302,223 @@
         var r = strip.querySelector('svg').getBoundingClientRect();
         var q = e.detail ? Math.floor((e.clientX - r.left) / r.width * g.n) : 0;
         pick(Math.max(0, Math.min(g.n - 1, q)));
+      });
+    }
+
+    function linksHtml() {
+      if (!PAL) return '<div><button type="button" class="linkish" id="reset-colours">Reset colours</button></div>';
+      if (essay) return '';
+      var h = '<div class="key-links">';
+      h += '<button type="button" class="linkish" id="key-tap" aria-pressed="' + (keyTap === 'highlight') + '" title="Tap a key item to fade every other class">' +
+        (keyTap === 'highlight' ? '◉ Highlighting' : '◎ Highlight') + '</button>';
+      if (solo >= 0) h += '<button type="button" class="linkish" id="solo-clear">Show all</button>';
+      if (hasOver()) h += '<button type="button" class="linkish" id="reset-colours" title="Drop your swatch edits for this colour-by and palette">Reset to palette</button>';
+      h += '<button type="button" class="linkish" id="custom-toggle" aria-expanded="' + customOpen + '">' + (customOpen ? 'Customise ▾' : 'Customise ▸') + '</button>';
+      h += '</div><p class="key-hint">' + (keyTap === 'highlight' ? 'Tap a key item to highlight it; tap again to show all.' : 'Tap a key item to give it your own colour.') + '</p>';
+      return h;
+    }
+    function wireKeyLinks() {
+      var el = document.getElementById('key-tap');
+      if (el) el.addEventListener('click', function () {
+        keyTap = keyTap === 'highlight' ? 'recolour' : 'highlight';
+        if (keyTap === 'recolour') solo = -1;
+        saveOptions(); renderLegend(); changed();
+      });
+      el = document.getElementById('solo-clear');
+      if (el) el.addEventListener('click', function () { solo = -1; saveOptions(); renderLegend(); changed(); });
+      el = document.getElementById('custom-toggle');
+      if (el) el.addEventListener('click', function () { customOpen = !customOpen; saveOptions(); renderLegend(); renderCustom(); });
+    }
+
+    /* ------------------------------------------------ palette picker */
+
+    var customOpen = false, palOpen = false;
+    var palBtn = document.getElementById('pal-btn'), palList = document.getElementById('pal-list');
+    var customEl = document.getElementById('custom-panel');
+    function swatches(cols, max) {
+      return '<span class="sw" aria-hidden="true">' + cols.slice(0, max || 8).map(function (c) {
+        return '<i style="background:' + css(c) + '"></i>';
+      }).join('') + '</span>';
+    }
+    function previewOf(P) {
+      if (P.id === 'original') {
+        var seen = {}, out = [];
+        presets[sel].colours(dark).forEach(function (c) { var h = toHex(c); if (!seen[h]) { seen[h] = 1; out.push(c); } });
+        return out;
+      }
+      return PAL.preview(P, 6);
+    }
+    function allPals() {
+      var list = PAL.list.slice();
+      userPals.forEach(function (u) { list.push(PAL.fromUser(u)); });
+      if (sharedPal && !userPals.some(function (u) { return u.name === sharedPal.name; })) {
+        var x = PAL.fromUser(sharedPal); x.id = 'x'; x.name = sharedPal.name + ' (shared)'; list.push(x);
+      }
+      return list;
+    }
+    function palName(P) {
+      if (P.id !== 'original') return P.name;
+      return presets[sel].grouping && /^(turnhand|hand|one)$/.test(presets[sel].grouping) && sel !== 'flipped' ? 'Original (David Ryan)' : 'Original (article)';
+    }
+    function renderPalettes() {
+      if (!PAL || !palList) return;
+      var P = activePal(), cur = palId(), html = '', grp = null;
+      if (palBtn) {
+        palBtn.innerHTML = swatches(previewOf(P), 6) + '<span class="pal-name">' + palName(P) + (hasOver() && !essay ? ' · edited' : '') + '</span><span class="caret" aria-hidden="true">▾</span>';
+        palBtn.setAttribute('aria-expanded', palOpen);
+      }
+      allPals().forEach(function (Q) {
+        if (Q.group !== grp) {
+          if (grp !== null) html += '</div>';
+          grp = Q.group;
+          html += '<div class="pal-group" role="group" aria-label="' + grp + '"><span class="pal-group-label">' + grp + '</span>';
+        }
+        html += '<button type="button" class="pal-chip' + (Q.id === cur ? ' on' : '') + '" data-pal="' + Q.id.replace(/"/g, '&quot;') + '" aria-pressed="' + (Q.id === cur) + '"' +
+          (Q.note ? ' title="' + Q.note + '"' : '') + '>' + swatches(previewOf(Q), 6) + '<span>' + Q.name.replace(/</g, '&lt;') + '</span></button>';
+      });
+      if (grp !== null) html += '</div>';
+      var sl = palList.scrollLeft, st = palList.scrollTop;
+      palList.innerHTML = html;
+      palList.classList.toggle('open', palOpen);
+      palList.scrollLeft = sl; palList.scrollTop = st;
+    }
+    function setPalette(id) {
+      if (!palById(id)) return;
+      pal = id;
+      saveOptions();
+      renderPalettes();
+      renderLegend();
+      renderCustom();
+      changed();
+    }
+    if (PAL && palList) {
+      palList.addEventListener('click', function (e) {
+        var b = e.target.closest('.pal-chip');
+        if (!b || essay) return;
+        if (!document.body.classList.contains('phone')) palOpen = false;
+        setPalette(b.dataset.pal);
+      });
+      if (palBtn) palBtn.addEventListener('click', function () {
+        palOpen = !palOpen;
+        renderPalettes();
+        if (palOpen) { var on = palList.querySelector('.pal-chip.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest' }); }
+      });
+    }
+    function resetToPalette() {
+      delete over[overKey()];
+      solo = -1;
+      saveOptions();
+      renderPalettes();
+      renderLegend();
+      changed();
+    }
+
+    /* ---------------------------------------------- customise panel */
+
+    var $c = function (id) { return document.getElementById(id); };
+    function note(t) { var n = $c('pal-note'); if (n) { n.textContent = t; clearTimeout(note.t); note.t = setTimeout(function () { n.textContent = ''; }, 6000); } }
+    function renderCustom() {
+      if (!PAL || !customEl) return;
+      customEl.hidden = !customOpen || !!essay || !legendOpen;
+      if (customEl.hidden) return;
+      var k = inkNow(), P = activePal();
+      $c('ink-colour').value = ink.colour || toHex(k.colour || (dark ? hex('#b4afa3') : hex('#34332e')));
+      $c('ink-auto').setAttribute('aria-pressed', !ink.colour);
+      $c('ink-width').value = String(k.width);
+      $c('ink-width-out').textContent = k.width === 0 ? 'none' : k.width.toFixed(2).replace(/\.?0+$/, '') + ' px';
+      $c('bg-colour').value = userBg || toHex(bgColour());
+      Array.prototype.forEach.call(customEl.querySelectorAll('[data-bg]'), function (b) {
+        var v = b.dataset.bg;
+        b.setAttribute('aria-pressed', v === 'auto' ? !userBg : userBg === v);
+      });
+      var del = $c('pal-delete');
+      if (del) del.hidden = !(P.user && P.id !== 'x');
+      var nm = $c('pal-name');
+      if (nm && !nm.value && P.user) nm.placeholder = P.name.replace(/ \(shared\)$/, '');
+    }
+    function customChanged() { saveOptions(); renderPalettes(); renderLegend(); renderCustom(); changed(); }
+    // The current colours as a palette that can be reused on any mode: the
+    // non-field groups in class order (one per family, its middle shade),
+    // and the exact colours for this mode's grouping.
+    function currentAsPalette(name) {
+      var g = currentGrouping(), cols = groupColours().map(toHex), fld = {}, list = [];
+      (g.field || []).forEach(function (k) { fld[k] = 1; });
+      if (g.rest !== undefined) fld[g.rest] = 1;
+      var inFam = {};
+      (g.families || []).forEach(function (f) { f.forEach(function (k) { inFam[k] = 1; }); list.push(cols[f[Math.floor(f.length / 2)]]); });
+      cols.forEach(function (c, k) { if (!fld[k] && !inFam[k]) list.push(c); });
+      if (!list.length) list = cols.slice();
+      var k = inkNow(), u = { name: name, colours: list, exact: {} };
+      u.exact[g.id] = cols;
+      if (g.field && g.field.length) u.field = cols[g.field[0]];
+      else if (activePal().field) u.field = toHex(activePal().field);
+      if (userBg || activePal().bg) u.bg = userBg || toHex(activePal().bg);
+      if (k.colour) u.edge = toHex(k.colour);
+      if (k.width !== 1) u.width = k.width;
+      return u;
+    }
+    function addUserPal(u) {
+      userPals = userPals.filter(function (x) { return x.name !== u.name; });
+      userPals.push(u);
+      if (userPals.length > 40) userPals.shift();
+    }
+    if (PAL && customEl) {
+      $c('ink-colour').addEventListener('input', function () { ink.colour = this.value; requestDraw(); });
+      $c('ink-colour').addEventListener('change', function () { ink.colour = this.value; customChanged(); });
+      $c('ink-auto').addEventListener('click', function () { ink.colour = null; ink.width = null; customChanged(); });
+      $c('ink-width').addEventListener('input', function () {
+        ink.width = parseFloat(this.value);
+        $c('ink-width-out').textContent = ink.width === 0 ? 'none' : ink.width.toFixed(2).replace(/\.?0+$/, '') + ' px';
+        requestDraw();
+      });
+      $c('ink-width').addEventListener('change', function () { ink.width = parseFloat(this.value); customChanged(); });
+      $c('bg-colour').addEventListener('input', function () { userBg = this.value; requestDraw(); });
+      $c('bg-colour').addEventListener('change', function () { userBg = this.value; customChanged(); });
+      Array.prototype.forEach.call(customEl.querySelectorAll('[data-bg]'), function (b) {
+        b.addEventListener('click', function () { userBg = b.dataset.bg === 'auto' ? null : b.dataset.bg; customChanged(); });
+      });
+      $c('custom-random').addEventListener('click', function () { document.getElementById('random-colours').click(); });
+      $c('custom-reset').addEventListener('click', function () { resetToPalette(); renderCustom(); });
+      $c('custom-reset-all').addEventListener('click', function () { resetColours(); renderCustom(); note('Back to the original colours.'); });
+      $c('pal-save').addEventListener('click', function () {
+        var nm = $c('pal-name'), name = (nm.value || nm.placeholder || '').trim();
+        if (!name || name === 'Name') name = 'My palette ' + (userPals.length + 1);
+        name = name.replace(/[;~&#]/g, ' ').slice(0, 40).trim();
+        var u = currentAsPalette(name);
+        // The new palette shows exactly what was on screen, so this mode's
+        // edits are folded into it.
+        addUserPal(u);
+        delete over[overKey()];
+        pal = 'u:' + name;
+        nm.value = '';
+        customChanged();
+        note('Saved “' + name + '”. It is in the palette list under My palettes, for every colour-by.');
+      });
+      $c('pal-delete').addEventListener('click', function () {
+        var P = activePal();
+        if (!P.user) return;
+        userPals = userPals.filter(function (x) { return 'u:' + x.name !== P.id; });
+        pal = 'original';
+        customChanged();
+        note('Deleted “' + P.name + '”.');
+      });
+      $c('pal-export').addEventListener('click', function () {
+        var P = activePal(), u = currentAsPalette(P.user ? P.src.name : (palName(P).replace(/^Original \((.*)\)$/, '$1 original') + (hasOver() ? ' edited' : '')));
+        var code = PAL.encode(u), box = $c('pal-code');
+        box.value = code + '\n\n' + JSON.stringify(u);
+        box.select();
+        var done = function (ok) { note(ok ? 'Code copied. Paste it into Import on any device.' : 'Copy the code above (select and copy).'); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(function () { done(true); }, function () { done(false); });
+        else done(false);
+      });
+      $c('pal-import').addEventListener('click', function () {
+        var box = $c('pal-code'), text = box.value.split('\n\n')[0];
+        var u = PAL.decode(text) || PAL.decode(box.value);
+        if (!u) { note('Paste a palette code (HP1;…), JSON, or a list of hex colours first.'); return; }
+        addUserPal(u);
+        pal = 'u:' + u.name;
+        customChanged();
+        note('Imported “' + u.name + '” (' + u.colours.length + ' colours).');
       });
     }
 
@@ -1333,7 +1659,8 @@
     function draw() {
       frame++;
       gl.viewport(0, 0, canvas.width, canvas.height);
-      gl.clearColor(theme.bg[0], theme.bg[1], theme.bg[2], 1);
+      var bgc = bgColour();
+      gl.clearColor(bgc[0], bgc[1], bgc[2], 1);
       gl.clear(gl.COLOR_BUFFER_BIT);
       if (!info) return;
 
@@ -1359,9 +1686,10 @@
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, PALETTE, 1, gl.RGBA, gl.FLOAT, paletteData);
       gl.uniform1i(U.u_palette, 0);
       gl.uniform1i(U.u_levels, outlines ? 1 : 0);
-      gl.uniform3fv(U.u_edge, theme.edge);
+      var inkc = inkNow();
+      gl.uniform3fv(U.u_edge, inkc.colour || theme.edge);
       gl.uniform3fv(U.u_line, theme.line);
-      gl.uniform3fv(U.u_edgeAlt, theme.edgeAlt);
+      gl.uniform3fv(U.u_edgeAlt, inkc.colour || theme.edgeAlt);
       gl.uniform3fv(U.u_lineAlt, theme.lineAlt);
       gl.uniform3fv(U.u_hot, theme.hot);
       gl.uniform3fv(U.u_hot2, theme.hot2);
@@ -1376,7 +1704,7 @@
       }
       // Supertile lines thicken with the supertile's size on screen, about
       // 2.8 times per level, so small supertiles never bury their tiles.
-      var widths = [1.0];
+      var widths = [Math.max(0, inkc.width)];
       for (var lv = 1; lv <= 5; lv++) {
         var wd = Math.min(6, Math.max(0, 0.45 * Math.log2(s * Math.pow(2.8, lv) / 4)));
         if (widths[lv - 1] > 0 && lv > 1) wd = Math.max(wd, widths[lv - 1] + 0.4);
@@ -1384,7 +1712,10 @@
       }
       gl.uniform1fv(U.u_width, new Float32Array(widths.map(function (w) { return w * dpr / 2; })));
       var t = Math.min(1, Math.max(0, (s - 1.2) / 5));
-      gl.uniform1f(U.u_edgeAlpha, 0.22 + 0.63 * t * t * (3 - 2 * t));
+      var ea = 0.22 + 0.63 * t * t * (3 - 2 * t);
+      // A chosen outline colour is meant to be seen, and width 0 hides it.
+      if (inkc.colour) ea = Math.min(1, ea * 1.15);
+      gl.uniform1f(U.u_edgeAlpha, inkc.width <= 0 ? 0 : ea);
       // Edge profiles: A, and B for the edges in prof.sel. Each is a list of
       // points or null for straight edges.
       var prof = cfg.shape.profile(res) || {};
@@ -1675,12 +2006,77 @@
       var st = info.start;
       var v = [fmt(view.P[0] - st.P[0], 2), fmt(view.P[1] - st.P[1], 2), fmt(view.s, 2), fmt(view.rot * 180 / Math.PI, 1)];
       if (slope) v.push(fmt(view.R[0] - st.R[0], 2), fmt(view.R[1] - st.R[1], 2));
-      var parts = ['v=' + v.join(','), 'c=' + encodeURIComponent(sel)];
-      if (sel.indexOf('custom:') === 0) parts.push('k=' + customs[sel.slice(7)].map(function (h) { return h.slice(1); }).join('-'));
+      var parts = ['v=' + v.join(','), 'c=' + encodeURIComponent(essay ? essay.sel : sel)];
+      if (PAL) palHash(parts);
+      else if (sel.indexOf('custom:') === 0) parts.push('k=' + customs[sel.slice(7)].map(function (h) { return h.slice(1); }).join('-'));
       var extra = cfg.hashGet ? cfg.hashGet() : {};
       // A comma stays as it is, so a pair such as mk=3,7 reads plainly.
       Object.keys(extra).forEach(function (key) { parts.push(key + '=' + encodeURIComponent(extra[key]).replace(/%2C/gi, ',')); });
       try { history.replaceState(null, '', '#' + parts.join('&')); } catch (e) {}
+    }
+    // Palette state in the address bar: p= palette id (or u with pn= name,
+    // pc= colours and px= this mode's exact colours for a saved palette),
+    // k= swatch edits (_ for none), bg= background, ol= and ow= outline
+    // colour and width, hl= highlighted group.
+    function palHash(parts) {
+      var s0 = essay ? essay.sel : sel, key = s0 + '|' + pal, P = palById(pal);
+      if (pal !== 'original' && P) {
+        if (P.user) {
+          var u = P.src;
+          parts.push('p=u', 'pn=' + encodeURIComponent(u.name), 'pc=' + u.colours.map(function (h) { return h.slice(1); }).join('-'));
+          var gid = presets[s0] && presets[s0].grouping;
+          if (u.exact && gid && u.exact[gid]) parts.push('px=' + u.exact[gid].map(function (h) { return h.slice(1); }).join('-'));
+          if (u.field) parts.push('pf=' + u.field.slice(1));
+          if (u.bg) parts.push('pb=' + u.bg.slice(1));
+          if (u.edge) parts.push('po=' + u.edge.slice(1));
+          if (u.width !== undefined && u.width !== null) parts.push('pw=' + fmt(u.width, 2));
+        } else parts.push('p=' + pal);
+      }
+      var o = over[key];
+      if (o && o.some(Boolean)) parts.push('k=' + o.map(function (h) { return h ? h.slice(1) : '_'; }).join('-'));
+      if (userBg) parts.push('bg=' + userBg.slice(1));
+      if (ink.colour) parts.push('ol=' + ink.colour.slice(1));
+      if (ink.width !== null) parts.push('ow=' + fmt(ink.width, 2));
+      if (solo >= 0) parts.push('hl=' + solo);
+    }
+    function hexList(s) {
+      var l = String(s || '').split('-').map(function (x) { return '#' + x.toLowerCase(); });
+      return l.length && l.every(function (x) { return /^#[0-9a-f]{6}$/.test(x); }) ? l : null;
+    }
+    function palFromHash(q) {
+      var c = q.c, alias = aliasOf(c);
+      if (c && c.indexOf('custom:') === 0) {
+        // David's custom links: the first colour-by on that grouping, with
+        // the custom colours as edits of its original palette.
+        var gid = c.slice(7), list = hexList(q.k);
+        var id = cfg.presets.filter(function (p) { return p.grouping === gid && !p.alias; })[0];
+        if (id && list && groupings[gid] && list.length === groupings[gid].n) { sel = id.id; pal = 'original'; over[overKey()] = list; }
+        return;
+      }
+      if (!c || !presets[c]) return;
+      sel = alias ? alias.colourBy : c;
+      pal = alias ? alias.palette : 'original';
+      if (q.p === 'u' && q.pn && hexList(q.pc)) {
+        var u = { name: String(q.pn).slice(0, 40), colours: hexList(q.pc), exact: {} };
+        var px = hexList(q.px), g0 = presets[sel].grouping;
+        if (px && groupings[g0] && px.length === groupings[g0].n) u.exact[g0] = px;
+        if (hexList(q.pf)) u.field = hexList(q.pf)[0];
+        if (hexList(q.pb)) u.bg = hexList(q.pb)[0];
+        if (hexList(q.po)) u.edge = hexList(q.po)[0];
+        if (q.pw !== undefined && !isNaN(parseFloat(q.pw))) u.width = Math.max(0, Math.min(4, parseFloat(q.pw)));
+        var mine = userPals.filter(function (x) { return x.name === u.name; })[0];
+        if (mine && mine.colours.join() === u.colours.join()) pal = 'u:' + u.name;
+        else { sharedPal = u; pal = 'x'; }
+      } else if (q.p && PAL.get(q.p)) pal = q.p;
+      var g = currentGrouping(), key = overKey(), k = q.k ? q.k.split('-') : null;
+      if (k && k.length === g.n && k.every(function (x) { return x === '_' || /^[0-9a-f]{6}$/i.test(x); })) {
+        over[key] = k.map(function (x) { return x === '_' ? null : '#' + x.toLowerCase(); });
+      } else delete over[key];
+      userBg = hexList(q.bg) ? hexList(q.bg)[0] : null;
+      ink.colour = hexList(q.ol) ? hexList(q.ol)[0] : null;
+      ink.width = q.ow !== undefined && !isNaN(parseFloat(q.ow)) ? Math.max(0, Math.min(4, parseFloat(q.ow))) : null;
+      solo = q.hl !== undefined && +q.hl >= 0 && +q.hl < g.n ? +q.hl : -1;
+      if (solo >= 0) keyTap = 'highlight';
     }
     function readHash() {
       var h = location.hash.replace(/^#/, '');
@@ -1690,7 +2086,8 @@
       // The first version of the page wrote #x,y,zoom.
       if (!q.v && /^-?[\d.]+,-?[\d.]+,[\d.]+$/.test(h)) q.v = h;
       if (cfg.hashSet) cfg.hashSet(q);
-      if (q.c && (presets[q.c] || q.c.indexOf('custom:') === 0)) {
+      if (PAL) palFromHash(q);
+      else if (q.c && (presets[q.c] || q.c.indexOf('custom:') === 0)) {
         if (q.c.indexOf('custom:') === 0) {
           var gid = q.c.slice(7);
           if (groupings[gid] && q.k) {
@@ -1715,8 +2112,14 @@
 
     function saveOptions() {
       try {
-        localStorage.setItem(store, JSON.stringify({ sel: sel, customs: customs, outlines: outlines,
-          grid: { on: grid.on, on0: grid.on0, on30: grid.on30 } }));
+        var o = { sel: essay ? essay.sel : sel, customs: customs, outlines: outlines,
+          grid: { on: grid.on, on0: grid.on0, on30: grid.on30 } };
+        if (PAL) {
+          o.pal = pal; o.over = over; o.ink = ink; o.bg = userBg; o.solo = solo; o.keyTap = keyTap; o.customOpen = customOpen;
+          o.shared = pal === 'x' ? sharedPal : null;
+          localStorage.setItem(store + '-palettes', JSON.stringify(userPals));
+        }
+        localStorage.setItem(store, JSON.stringify(o));
       } catch (e) {}
     }
     function loadOptions() {
@@ -1729,9 +2132,47 @@
           if (groupings[g] && Array.isArray(list) && list.length && list.every(function (x) { return /^#[0-9a-f]{6}$/i.test(x); })) customs[g] = list;
         });
         if (o.sel && (presets[o.sel] || (o.sel.indexOf('custom:') === 0 && customs[o.sel.slice(7)]))) sel = o.sel;
+        if (PAL) loadPalOptions(o);
         outlines = !!o.outlines;
         if (o.grid && hasGrid) { grid.on = !!o.grid.on; grid.on0 = o.grid.on0 !== false; grid.on30 = o.grid.on30 !== false; }
       } catch (e) {}
+    }
+
+    function loadPalOptions(o) {
+      try {
+        var up = JSON.parse(localStorage.getItem(store + '-palettes') || '[]');
+        if (Array.isArray(up)) userPals = up.map(function (u) {
+          var d = PAL.decode(JSON.stringify(u));
+          if (!d) return null;
+          if (u.exact && typeof u.exact === 'object') {
+            d.exact = {};
+            Object.keys(u.exact).forEach(function (gid) { var l = u.exact[gid]; if (Array.isArray(l) && l.every(function (x) { return /^#[0-9a-f]{6}$/i.test(x); })) d.exact[gid] = l; });
+          }
+          return d;
+        }).filter(Boolean);
+      } catch (e) { userPals = []; }
+      // An old custom set or alias preset becomes colour-by + palette + edits.
+      if (sel.indexOf('custom:') === 0) {
+        var gid = sel.slice(7), p0 = cfg.presets.filter(function (p) { return p.grouping === gid && !p.alias; })[0];
+        sel = p0 ? p0.id : (cfg.defaultScheme || cfg.presets[0].id);
+        if (p0 && customs[gid]) over[sel + '|original'] = customs[gid].slice();
+      }
+      var a = aliasOf(sel);
+      if (a) { sel = a.colourBy; pal = a.palette; }
+      if (o.shared && Array.isArray(o.shared.colours)) sharedPal = PAL.decode(JSON.stringify(o.shared));
+      if (typeof o.pal === 'string' && palById(o.pal)) pal = o.pal;
+      if (o.over && typeof o.over === 'object') Object.keys(o.over).forEach(function (k) {
+        var l = o.over[k];
+        if (Array.isArray(l) && l.every(function (x) { return x === null || /^#[0-9a-f]{6}$/i.test(x); })) over[k] = l;
+      });
+      if (o.ink) {
+        ink.colour = /^#[0-9a-f]{6}$/i.test(o.ink.colour || '') ? o.ink.colour : null;
+        ink.width = typeof o.ink.width === 'number' && o.ink.width >= 0 && o.ink.width <= 4 ? o.ink.width : null;
+      }
+      userBg = /^#[0-9a-f]{6}$/i.test(o.bg || '') ? o.bg : null;
+      keyTap = o.keyTap === 'highlight' ? 'highlight' : 'recolour';
+      solo = typeof o.solo === 'number' && keyTap === 'highlight' ? o.solo : -1;
+      customOpen = !!o.customOpen;
     }
 
     /* ------------------------------------------------------- input */
@@ -1964,6 +2405,7 @@
     function resetColours() {
       sel = cfg.defaultScheme || cfg.presets[0].id;
       customs = {};
+      if (PAL) { pal = 'original'; over = {}; ink = { colour: null, width: null }; userBg = null; solo = -1; }
       renderSchemeSelect();
       saveOptions();
       renderLegend();
@@ -2100,14 +2542,47 @@
     };
     map.playback = function () { return tau; };
     // The colour scheme, read or set by preset id.
-    map.scheme = function (id) {
+    map.scheme = function (id, palette) {
       if (id === undefined) return sel;
-      if (!presets[id] || id === sel) return;
+      if (!presets[id]) return;
+      if (PAL && essay) {
+        var np = palette && palById(palette) ? palette : 'original';
+        if (id === sel && np === essay.pal) return;
+        essay.pal = np;
+      } else if (PAL) {
+        var a = aliasOf(id);
+        if (a) { id = a.colourBy; palette = palette || a.palette; }
+        if (palette && palById(palette)) pal = palette;
+      } else if (id === sel) return;
       sel = id;
       renderSchemeSelect();
       saveOptions();
       renderLegend();
       changed();
+    };
+    // The palette id, read or set (Explore mode).
+    map.palette = function (id) {
+      if (id === undefined) return palId();
+      if (!PAL || essay) return;
+      setPalette(id);
+    };
+    map.palettes = function () { return PAL ? allPals().map(function (P) { return P.id; }) : []; };
+    // Essay mode shows each scene in the article's colours; on leaving it,
+    // the colour-by, palette and edits chosen in Explore mode come back.
+    map.essayColours = function (on) {
+      if (!PAL) return;
+      if (on && !essay) { essay = { sel: sel, pal: 'original' }; palOpen = false; }
+      else if (!on && essay) { sel = essay.sel; essay = null; }
+      else return;
+      renderSchemeSelect();
+      renderLegend();
+      renderCustom();
+      changed();
+    };
+    map.colourState = function () {
+      return { sel: sel, pal: palId(), essay: !!essay, over: over[overKey()] || null, ink: { colour: ink.colour, width: ink.width },
+               bg: userBg, solo: solo, userPals: userPals.map(function (u) { return u.name; }),
+               colours: groupColours().map(toHex), clearColour: toHex(bgColour()) };
     };
     // Supertile or wedge outlines, read or set.
     map.outlines = function (on) {

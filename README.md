@@ -27,6 +27,8 @@ Plain HTML, JavaScript and WebGL 2. No build step, no dependencies.
 8. Flip + three-shell
 9. Grain phase: centroids projected on 54° and wrapped (adjustable period)
 
+**Colours, your way (Explore mode).** Pick what to *colour by* (orientation, any of the article's maps, or the explorations) and, separately, a *palette* that applies to it: the article's original colours, David's Pastel/Rainbow/Greyscale/Mirrored/Plain, Viridis, Magma, Cividis, Turbo, Set2, Dark2, Paired, Tableau 10, colour-blind-safe Okabe–Ito, Monochrome blue, Earth & terracotta, Neon on dark, Soft pastel, Print greyscale, Bauhaus, Mondrian, Escher sepia and Islamic tile blues. Ordered maps (distance shells, grain phase) follow a ramp; categories get discrete colours. Tap a key swatch to recolour a class, or highlight one class. *Customise* sets outline colour and width and the background, saves named palettes (kept in your browser, reusable on every map), and exports/imports them as a short code or JSON. The link in the address bar reproduces the palette and your edits. Essay mode keeps the article's colours.
+
 **Essay mode.** The Essay / Explore toggle opens the article in a side panel (a bottom sheet on narrow screens). Scroll, click a section, or press PageUp/PageDown or j/k, and the map flies to that section's scene: colour map, view, tile shape and outlines. The article's own images sit under each section for comparison.
 
 **New explorations**
@@ -60,7 +62,7 @@ The article text and one scene per section are in [`essay/scenes.js`](essay/scen
 - `scheme`: a preset id. Article maps: `flipped`, `chains`, `stacks`, `shells`, `axes`, `roles`, `molecule`, `grain`. David's presets: `pastel`, `rainbow`, `grey`, `hands`, `plain`. Explorations: `ancestry`, `census`.
 - `v`: `[dP0, dP1, zoom, turnDeg, dR0, dR1]`, the same as the URL's `v=` parameter. Zoom is pixels per hat unit (default 8).
 - `shape`: degrees on the slider (0 chevron, 30 hat, 45 spectre, 60 turtle, 90 comet).
-- Optional: `outlines`, `ancLevel` (1–5), `grainPeriod` (article units), `ms` (flight time).
+- Optional: `outlines`, `ancLevel` (1–5), `grainPeriod` (article units), `ms` (flight time), `palette` (a palette id such as `viridis`; default: the article's colours).
 
 The easiest way to get a scene: set up the view in Explore mode, click **Options → Copy scene**, and paste the result over a section's `scene`.
 
@@ -70,7 +72,7 @@ The easiest way to get a scene: set up the view in Explore mode, click **Options
 index.html              redirects to tiles/hat/
 assets/theme.js         David's theme toggle
 essay/                  scenes.js (article + scenes), essay.js, probe-ui.js, essay.css, img/
-tiles/engine/           David's map engine and worker core, with a small probe-map extension
+tiles/engine/           David's map engine and worker core, with a small probe-map extension and palettes.js (colour schemes)
 tiles/hat/              Hat page, rules (tiling.js) and probe analysis (probes.js, new)
 tiles/spectre/, tiles/hat-extended/, tiles/krinkle/   David's sibling pages
 ```

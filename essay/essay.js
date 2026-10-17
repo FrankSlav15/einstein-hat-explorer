@@ -79,7 +79,8 @@
   function applyScene(i, instant) {
     var s = E.sections[i] && E.sections[i].scene;
     if (!s) return;
-    if (s.scheme) { map.scheme(s.scheme); if (window.probeUI) window.probeUI.schemeChanged(); }
+    // Scenes keep the article's own colours unless they name a palette.
+    if (s.scheme) { map.scheme(s.scheme, s.palette); if (window.probeUI) window.probeUI.schemeChanged(); }
     if (s.outlines !== undefined) map.outlines(!!s.outlines);
     if (s.ancLevel && window.probeUI) window.probeUI.setAnc(s.ancLevel);
     if (s.grainPeriod && window.probeUI) window.probeUI.setGrain(s.grainPeriod);
@@ -143,6 +144,9 @@
     panel.hidden = !on;
     toggle.textContent = on ? 'Explore' : 'Essay';
     toggle.setAttribute('aria-pressed', on);
+    // The article's colours while reading; Explore gets its own choice back.
+    if (map.essayColours) map.essayColours(on);
+    if (!on && window.probeUI) window.probeUI.schemeChanged();
     toggle.title = on ? 'Back to free Explore mode' : 'Read the article alongside the map';
     if (on) {
       if (narrow()) document.querySelector('.options').classList.add('folded');

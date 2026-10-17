@@ -121,9 +121,10 @@
   </button>
 </div>
 
-<div class="card legend" id="legend">
+<div class="card legend has-pal" id="legend">
   <div class="legend-head">
-    <select id="scheme" aria-label="Colours"></select>
+    <span class="pane-label" id="by-label">Colour by</span>
+    <select id="scheme" aria-label="Colour by"></select>
     <button type="button" class="dice" id="random-colours" title="Random colours" aria-label="Random colours">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true">
         <rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/>
@@ -141,7 +142,50 @@
     </button>
     <button type="button" class="linkish" id="legend-toggle" aria-expanded="true">Hide</button>
   </div>
+  <div class="pal-row">
+    <span class="pane-label" id="pal-label">Palette</span>
+    <button type="button" class="pal-btn" id="pal-btn" aria-expanded="false" aria-controls="pal-list" aria-labelledby="pal-label pal-btn"></button>
+  </div>
+  <div class="pal-list" id="pal-list" aria-label="Palettes"></div>
+  <span class="pane-label key-label">Key</span>
   <div id="legend-body" aria-live="polite"></div>
+  <div class="custom-panel" id="custom-panel" hidden>
+    <div class="cp-row">
+      <span class="cp-label">Outline</span>
+      <input type="color" id="ink-colour" aria-label="Outline colour">
+      <button type="button" class="cp-chip" id="ink-auto" title="Each tile picks the ink that contrasts with it">Auto</button>
+      <input type="range" id="ink-width" min="0" max="4" step="0.25" value="1" aria-label="Outline width">
+      <output id="ink-width-out">1 px</output>
+    </div>
+    <div class="cp-row">
+      <span class="cp-label" title="The canvas, and the field tiles of a probe map (off-river, unstacked, everything else)">Background</span>
+      <span class="cp-chips">
+        <input type="color" id="bg-colour" aria-label="Background and field colour">
+        <button type="button" class="cp-chip" data-bg="auto">Auto</button>
+        <button type="button" class="cp-chip cp-sw" data-bg="#f6f3ec" title="Paper" aria-label="Paper"><i style="background:#f6f3ec"></i></button>
+        <button type="button" class="cp-chip cp-sw" data-bg="#ffffff" title="White" aria-label="White"><i style="background:#ffffff"></i></button>
+        <button type="button" class="cp-chip cp-sw" data-bg="#8a8a8a" title="Grey" aria-label="Grey"><i style="background:#8a8a8a"></i></button>
+        <button type="button" class="cp-chip cp-sw" data-bg="#23232a" title="Charcoal" aria-label="Charcoal"><i style="background:#23232a"></i></button>
+        <button type="button" class="cp-chip cp-sw" data-bg="#000000" title="Black" aria-label="Black"><i style="background:#000000"></i></button>
+      </span>
+    </div>
+    <div class="cp-row cp-actions">
+      <button type="button" class="cp-chip" id="custom-random" title="Random colours for this key">Randomise</button>
+      <button type="button" class="cp-chip" id="custom-reset" title="Drop swatch edits for this colour-by and palette">Reset to palette</button>
+      <button type="button" class="cp-chip" id="custom-reset-all" title="Original palette, no edits, automatic outline and background">Reset all</button>
+    </div>
+    <div class="cp-row">
+      <input type="text" id="pal-name" maxlength="40" placeholder="Name" aria-label="Name for the saved palette" autocomplete="off">
+      <button type="button" class="cp-chip" id="pal-save" title="Save these colours as a palette you can use on any colour-by">Save palette</button>
+      <button type="button" class="cp-chip" id="pal-delete" hidden>Delete</button>
+    </div>
+    <div class="cp-row">
+      <button type="button" class="cp-chip" id="pal-export" title="Copy a short code for this palette">Export code</button>
+      <button type="button" class="cp-chip" id="pal-import" title="Read a code, JSON or hex list pasted below">Import</button>
+    </div>
+    <textarea id="pal-code" rows="2" spellcheck="false" aria-label="Palette code" placeholder="Paste a palette code (HP1;…), JSON or hex colours, then Import"></textarea>
+    <p class="cp-note" id="pal-note" aria-live="polite"></p>
+  </div>
 </div>
 
 <div class="card status" id="status" hidden>Building tiles…</div>
@@ -201,7 +245,11 @@
     turn and hand its own colour, or split the hats by hand alone. In the
     key, an m marks a mirrored hat, so 0° m is a mirrored hat at 0°. Click a
     group in the key to give it your own colour, or roll the dice for random
-    colours. <em>Supertiles</em> show the hierarchy that forces the pattern:
+    colours. <em>Colour by</em> picks what the colours show (orientation, the
+    article's probe maps, the explorations) and <em>Palette</em> picks the
+    scheme, from the original colours to Viridis, Okabe–Ito or Mondrian.
+    <em>Customise</em> sets the outline and background, saves your own
+    palettes, and exports them as a short code. <em>Supertiles</em> show the hierarchy that forces the pattern:
     hats group into the metatiles H, T, P and F, which group into larger
     ones, level after level. <em>Grid</em> lays a triangular grid
     through a corner. At the hat's own shape the 0° grid passes through every
@@ -229,6 +277,7 @@
 <script src="../engine/tiling-core.js"></script>
 <script src="tiling.js"></script>
 <script src="probes.js"></script>
+<script src="../engine/palettes.js"></script>
 <script src="../engine/map.js"></script>
 <script src="../../essay/scenes.js"></script>
 <script>
@@ -280,10 +329,11 @@
     classes.push({ turn: 2 * (c % 6), flip: c >= 6 ? 1 : 0, caption: (c % 6) * 60 + '°' + (c >= 6 ? ' m' : '') });
   }
   var groupings = [
-    { id: 'turnhand', name: '12 colours, turn and hand', n: 12, of: function (k) { return k; }, cols: 6 },
+    { id: 'turnhand', name: '12 colours, turn and hand', n: 12, of: function (k) { return k; }, cols: 6,
+      families: [0, 1, 2, 3, 4, 5].map(function (t) { return [t + 6, t]; }) },
     // No grouping by turn alone: it would pair each hat with a mirrored hat,
     // and which one depends on an arbitrary choice of mirror line.
-    { id: 'hand', name: '2 colours, hand', n: 2, of: function (k) { return k >= 6 ? 1 : 0; }, cols: 1 },
+    { id: 'hand', name: '2 colours, hand', n: 2, of: function (k) { return k >= 6 ? 1 : 0; }, cols: 1, field: [0] },
     { id: 'one', name: '1 colour', n: 1, of: function () { return 0; }, cols: 1 }
   ];
 
@@ -332,6 +382,20 @@
   // The class order of the chain map is 1 + 3*heading + kind, so the key is
   // laid out with the off-river field first and one row per direction.
   probeGroupings.chain.order = [1, 4, 7, 10, 13, 16, 2, 5, 8, 11, 14, 17, 3, 6, 9, 12, 15, 18, 0];
+  // How palettes read each mode (engine/palettes.js): field classes take the
+  // palette's quiet colour, families share a hue in lightness steps (darkest
+  // first), ordered modes run along the palette's ramp.
+  probeGroupings.chain.field = [0];
+  probeGroupings.chain.families = [0, 1, 2, 3, 4, 5].map(function (h) { return [1 + 3 * h, 2 + 3 * h, 3 + 3 * h]; });
+  probeGroupings.stack.field = [0];
+  probeGroupings.mol.field = [0];
+  probeGroupings.shells.kind = 'seq';
+  // Flip at 0, then the seven shells spread over the rest of the ramp by
+  // distance, so neighbouring shells stay apart in any palette.
+  probeGroupings.shells.t = function (k) { return k === 0 ? 0 : 0.22 + 0.78 * (SHELLS[k - 1] - SHELLS[0]) / (SHELLS[SHELLS.length - 1] - SHELLS[0]); };
+  probeGroupings.grain.kind = 'cyc';
+  probeGroupings.census.rest = 16;
+  probeGroupings.anc.families = [0, 1, 2, 3].map(function (t) { return [4 * t, 4 * t + 1, 4 * t + 2, 4 * t + 3]; });
   Object.keys(probeGroupings).forEach(function (id) {
     var g = probeGroupings[id];
     g.of = function (k) { return k; };
@@ -350,56 +414,56 @@
   // hats and Plain keep a dark version, since one of their colours stands
   // in for the background.
   var presets = [
-    { id: 'pastel', name: 'Pastel', grouping: 'turnhand', colours: function () {
+    { id: 'pastel', byName: 'Turn and hand (12)', name: 'Pastel', grouping: 'turnhand', colours: function () {
       return classes.map(function (cl, k) {
         var m = k >= 6, hue = (k % 6) * 60 + 25;
         return oklch(m ? 0.60 : 0.88, m ? 0.15 : 0.075, hue);
       });
     } },
-    { id: 'rainbow', name: 'Rainbow', grouping: 'turnhand', colours: function () {
+    { id: 'rainbow', name: 'Rainbow', alias: { colourBy: 'pastel', palette: 'rainbow' }, grouping: 'turnhand', colours: function () {
       return classes.map(function (cl, k) {
         return oklch(0.8, 0.12, 25 + (k % 6) * 60 + (k >= 6 ? 30 : 0));
       });
     } },
     // Black to white in twelve even steps of lightness, unmirrored hats
     // first: unmirrored 0° is black and mirrored 300° is white.
-    { id: 'grey', name: 'Greyscale', grouping: 'turnhand', colours: function () {
+    { id: 'grey', name: 'Greyscale', alias: { colourBy: 'pastel', palette: 'grey' }, grouping: 'turnhand', colours: function () {
       return classes.map(function (cl, k) { return oklch(k / 11, 0, 0); });
     } },
-    { id: 'hands', name: 'Mirrored hats', grouping: 'hand', colours: function (dark) {
+    { id: 'hands', byName: 'Mirrored hats (hand)', name: 'Mirrored hats', grouping: 'hand', colours: function (dark) {
       return dark ? [hex('#3a3935'), hex('#6fa0e8')] : [hex('#eee7d6'), hex('#2d5fa8')];
     } },
-    { id: 'plain', name: 'Plain', grouping: 'one', colours: function (dark) { return [dark ? hex('#2a2a30') : hex('#fdfcf8')]; } },
+    { id: 'plain', byName: 'One colour', name: 'Plain', grouping: 'one', colours: function (dark) { return [dark ? hex('#2a2a30') : hex('#fdfcf8')]; } },
     // Probe maps after the article (legend colours from its images).
-    { id: 'flipped', name: 'Flipped hats (article)', grouping: 'hand', colours: function () { return [hex('#e6d5ab'), hex('#5b2d8e')]; } },
-    { id: 'chains', name: 'Chains by direction', grouping: 'chain', colours: function () {
+    { id: 'flipped', byName: 'Flipped hats', name: 'Flipped hats (article)', grouping: 'hand', colours: function () { return [hex('#e6d5ab'), hex('#5b2d8e')]; } },
+    { id: 'chains', byName: 'Chains by direction', name: 'Chains by direction', grouping: 'chain', colours: function () {
       return [hex('#e6d5ab')].concat([].concat.apply([], CHAIN_COLS.map(function (r) { return r.map(hex); })));
     } },
-    { id: 'stacks', name: 'Position on the stack', grouping: 'stack', colours: function () {
+    { id: 'stacks', byName: 'Position on the stack', name: 'Position on the stack', grouping: 'stack', colours: function () {
       return ['#e6d5ab', '#9b1d2e', '#f2c42f', '#5b2d8e'].map(hex);
     } },
-    { id: 'shells', name: 'Distance to nearest flip', grouping: 'shells', colours: function () {
+    { id: 'shells', byName: 'Distance to nearest flip', name: 'Distance to nearest flip', grouping: 'shells', colours: function () {
       return [0].concat(SHELLS).map(function (d) { return lerpHex(DIST_STOPS, Math.min(1, d / 3)); });
     } },
-    { id: 'axes', name: 'Three axes', grouping: 'axes', colours: function () {
+    { id: 'axes', byName: 'Three axes', name: 'Three axes', grouping: 'axes', colours: function () {
       return ['#e85d0c', '#1f8d9e', '#7b3bb8', '#1f1a24'].map(hex);
     } },
-    { id: 'roles', name: 'Substitution roles', grouping: 'roles', colours: function () {
+    { id: 'roles', byName: 'Substitution roles H T P F', name: 'Substitution roles', grouping: 'roles', colours: function () {
       return ['#e07b3c', '#f2c14e', '#2a9d8f', '#4a6b2f', '#4b1d6b'].map(hex);
     } },
-    { id: 'molecule', name: 'Flip + three-shell', grouping: 'mol', colours: function () {
+    { id: 'molecule', byName: 'Flip + three-shell', name: 'Flip + three-shell', grouping: 'mol', colours: function () {
       return ['#e6d5ab', '#4b1d6b', '#c45a22'].map(hex);
     } },
-    { id: 'grain', name: 'Grain phase (54°)', grouping: 'grain', colours: function () {
+    { id: 'grain', byName: 'Grain phase (54°)', name: 'Grain phase (54°)', grouping: 'grain', colours: function () {
       return Array.from({ length: 64 }, function (x, i) { return lerpHex(GRAIN_STOPS, (i + 0.5) / 64); });
     } },
     // New explorations.
-    { id: 'census', name: 'Neighbourhood types', grouping: 'census', colours: function () {
+    { id: 'census', byName: 'Neighbourhood census', name: 'Neighbourhood types', grouping: 'census', colours: function () {
       var q = ['#e15759', '#4e79a7', '#f28e2b', '#76b7b2', '#59a14f', '#edc948', '#b07aa1', '#ff9da7',
                '#9c755f', '#bab0ac', '#2f4b7c', '#d45087', '#665191', '#a05195', '#003f5c', '#ffa600'];
       return q.map(hex).concat([hex('#555555')]);
     } },
-    { id: 'ancestry', name: 'Supertile ancestry (level k)', grouping: 'anc', colours: function () {
+    { id: 'ancestry', byName: 'Supertile ancestry (k)', name: 'Supertile ancestry (level k)', grouping: 'anc', colours: function () {
       var base = [45, 95, 185, 130];      // H orange, T yellow, P teal, F olive
       var out = [];
       for (var t = 0; t < 4; t++) for (var v = 0; v < 4; v++) out.push(oklch(0.58 + 0.1 * v, 0.13 - 0.015 * v, base[t] + 8 * v));
@@ -426,6 +490,13 @@
     onViewChange: function () { if (window.probeUI) window.probeUI.viewChanged(); },
     groupings: groupings,
     presets: presets,
+    // Explore mode's colour system: what to colour by, and the palettes.
+    palettes: window.TilePalettes,
+    colourBy: [
+      { label: 'Orientation (David Ryan)', ids: ['pastel', 'hands', 'plain'] },
+      { label: 'Article probe maps', ids: ['flipped', 'chains', 'stacks', 'shells', 'axes', 'roles', 'molecule', 'grain'] },
+      { label: 'Explorations', ids: ['ancestry', 'census'] }
+    ],
     shape: shape,
     gridSpacing: function (ab) { return [ab[0], ab[1]]; },
     tileRadius: function () {
