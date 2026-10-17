@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spectre tiling – an aperiodic monotile</title>
+<meta name="description" content="Pan, zoom and turn the Spectre tiling, the aperiodic monotile found in 2023. One tile shape covers the plane in a pattern that never repeats.">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../../favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../../apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://frankslav15.github.io/einstein-hat-explorer/tiles/spectre/">
+<meta property="og:title" content="Spectre tiling – an aperiodic monotile">
+<meta property="og:description" content="Pan, zoom and turn the Spectre tiling. One tile shape, a pattern that never repeats.">
+<meta property="og:image" content="https://drbuild.uk/social/spectre.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Curved spectre tiles in rainbow colours, in a pattern that never repeats">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image:alt" content="Curved spectre tiles in rainbow colours, in a pattern that never repeats">
+<meta name="twitter:creator" content="@davidryan59">
+<script src="../../assets/theme.js"></script>
+<script>Theme.initTheme();</script>
+<link rel="stylesheet" href="../engine/map.css">
+</head>
+<body>
+
+<canvas id="map" tabindex="0" aria-label="Spectre tiling map. Drag to move, scroll or pinch to zoom, arrow keys to move, plus and minus to zoom, shift and the arrow keys to turn."></canvas>
+
+<div class="top">
+<div class="card title">
+  <a class="back" href="https://drbuild.uk/" target="_blank" rel="noopener">← David Ryan's builder page</a>
+  <button type="button" class="about-open" id="about-open">About</button>
+  <h1>Spectre tiling</h1>
+  <p class="hint">Tiles using only rotations, mirror image not required</p>
+  <div class="row">
+    <nav class="switch" aria-label="Tiling">
+      <a href="../hat/index.html">Hat</a><a href="../spectre/index.html" aria-current="page">Spectre</a><a href="../hat-extended/index.html">Hat (extended)</a><a href="../krinkle/index.html">Krinkle</a>
+    </nav>
+    <!-- Hidden with the Tiling Puzzle until David finishes more work on it. <a class="puzzle-link" href="../../tiling-puzzle/#p=spectre">Build it yourself</a> -->
+  </div>
+</div>
+
+<div class="card options">
+  <div class="head">
+    <button type="button" class="fold" id="options-fold" aria-expanded="false">Options</button>
+  </div>
+  <div class="body">
+    <div class="section">
+      <div class="slider">
+        <span>Edge lengths</span><output id="stretch-out"></output>
+        <input type="range" id="stretch" min="6" max="84" step="0.25" aria-label="Edge lengths: even-direction edges against odd-direction edges">
+        <div class="ticks placed"><button type="button" id="stretch-spectre" style="left: 50%">Spectre</button></div>
+      </div>
+    </div>
+    <div class="section">
+      <label class="section-title" for="shape">Edge shape</label>
+      <select id="shape"></select>
+      <div class="inline" id="arrangement" role="radiogroup" aria-label="Arrangement">
+        <label><input type="radio" name="arrangement" value="alt"> Single</label>
+        <label><input type="radio" name="arrangement" value="S"> Double</label>
+      </div>
+      <div class="slider" id="bend-box">
+        <span>Height</span><output id="bend-out"></output>
+        <input type="range" id="bend" min="-0.75" max="0.75" step="0.005" data-stops="0" aria-label="Height">
+        <div class="limits" id="limits"></div>
+        <div class="ticks zero"><button type="button" id="bend-zero" title="Straight edges">0</button></div>
+        <div class="limit-note" id="limit-note"></div>
+      </div>
+      <div class="slider" data-param="waves">
+        <span>Waves</span><output></output>
+        <input type="range" min="1" max="3" step="1" aria-label="Waves">
+      </div>
+      <div class="slider" data-param="peak">
+        <span>Peak position</span><output></output>
+        <input type="range" min="0" max="1" step="0.01" data-stops="0,0.5,1" aria-label="Peak position">
+      </div>
+      <div class="slider" data-param="rise">
+        <span>Rising side</span><output></output>
+        <input type="range" min="0" max="1" step="0.01" data-stops="0,0.5" aria-label="Rising side">
+      </div>
+      <div class="slider" data-param="fall">
+        <span>Falling side</span><output></output>
+        <input type="range" min="0" max="1" step="0.01" data-stops="0,0.5" aria-label="Falling side">
+      </div>
+      <div class="slider" data-param="neck">
+        <span>Neck width</span><output></output>
+        <input type="range" min="0" max="1" step="0.01" aria-label="Neck width">
+      </div>
+    </div>
+    <div class="section">
+      <label><input type="checkbox" id="outlines"> Supertiles</label>
+      <label><input type="checkbox" id="grid"> Grid</label>
+      <div class="sub" id="grid-sub" hidden>
+        <div class="inline">
+          <label><input type="checkbox" id="grid0"> 0° grid</label>
+          <label><input type="checkbox" id="grid30"> 30° grid</label>
+        </div>
+        <p class="hint" id="grid-hint"></p>
+        <div><button type="button" class="linkish" id="grid-clear">Start again</button></div>
+      </div>
+    </div>
+    <div class="section">
+      <div><button type="button" class="linkish" id="reset-options" title="Shape, supertiles and grid back to how the page opens">Reset options</button></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="card zoom" role="group" aria-label="Zoom and turn">
+  <button type="button" id="compass" class="compass" title="Turn back to north" aria-label="Turn back to north" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3 8.5 12h7z" fill="#d11a35"/><path d="M12 21 8.5 12h7z" fill="currentColor" opacity="0.55"/>
+    </svg>
+  </button>
+  <button type="button" id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+  <button type="button" id="zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+  <button type="button" id="turn-left" title="Turn left 5°" aria-label="Turn left 5 degrees">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M5.5 12a6.5 6.5 0 1 0 2-4.7"/><path d="M7.5 3.5v4h4"/>
+    </svg>
+  </button>
+  <button type="button" id="turn-right" title="Turn right 5°" aria-label="Turn right 5 degrees">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M18.5 12a6.5 6.5 0 1 1-2-4.7"/><path d="M16.5 3.5v4h-4"/>
+    </svg>
+  </button>
+  <button type="button" id="home" title="Back to the start" aria-label="Back to the start">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/>
+      <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/>
+    </svg>
+  </button>
+</div>
+
+<div class="card legend" id="legend">
+  <div class="legend-head">
+    <select id="scheme" aria-label="Colours"></select>
+    <button type="button" class="dice" id="random-colours" title="Random colours" aria-label="Random colours">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/>
+        <g fill="currentColor" stroke="none"><circle cx="8.2" cy="8.2" r="1.35"/><circle cx="15.8" cy="8.2" r="1.35"/><circle cx="12" cy="12" r="1.35"/><circle cx="8.2" cy="15.8" r="1.35"/><circle cx="15.8" cy="15.8" r="1.35"/></g>
+      </svg>
+    </button>
+    <button class="theme-toggle" type="button" hidden>
+      <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="4.1"/>
+        <path d="M12 2.7v2.1M12 19.2v2.1M21.3 12h-2.1M4.8 12H2.7M18.6 5.4 17.1 6.9M6.9 17.1l-1.5 1.5M18.6 18.6l-1.5-1.5M6.9 6.9 5.4 5.4"/>
+      </svg>
+      <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true">
+        <path d="M20.4 14.5A8.6 8.6 0 0 1 9.5 3.6a8.6 8.6 0 1 0 10.9 10.9z"/>
+      </svg>
+    </button>
+    <button type="button" class="linkish" id="legend-toggle" aria-expanded="true">Hide</button>
+  </div>
+  <div id="legend-body" aria-live="polite"></div>
+</div>
+
+<div class="card status" id="status" hidden>Building tiles…</div>
+
+<div class="card about" id="about" role="dialog" aria-modal="false" aria-labelledby="about-title" hidden>
+  <button type="button" class="close" id="about-close" aria-label="Close">×</button>
+  <h2 id="about-title">The Spectre</h2>
+  <p>
+    The Spectre is a single tile that covers the whole plane with no gaps
+    and no overlaps. The pattern it makes never repeats. David Smith, Joseph
+    Samuel Myers, Craig S. Kaplan and Chaim Goodman-Strauss announced it in
+    2023. It settles the "einstein" problem in its strictest form: with
+    curved edges, not even the tile's mirror image can join in.
+  </p>
+  <p>
+    The tile appears in 12 orientations. Six are common and sit 60° apart.
+    The other six are rare. Each rare tile is turned a further 30°, and it
+    pairs with one neighbour to make a two-tile cluster called a Mystic. The
+    colour menu groups the orientations by their angle modulo 30°, 60°, 90°,
+    120°, 180° or 360°. Click a group in the key to give it your own colour,
+    or roll the dice for random colours.
+  </p>
+  <p>
+    With straight edges the tile is Tile(1,1). It makes this pattern only if
+    mirror images are banned, because with mirror images it can also tile
+    periodically. Replace every edge with the same curve and the mirror
+    image stops fitting. The menu sets the shape of a bump on each edge.
+    <em>Single</em> puts one bump on each edge and flips its direction from
+    edge to edge. That fits because every shared edge joins an odd-numbered
+    edge to an even-numbered one. <em>Double</em> puts an S-shaped pair of
+    bumps on each edge. <em>Height</em> sets how far each edge swings, and
+    zero gives straight edges. Push the height past the marked limit and the tiles
+    collide: the red stripes show where they overlap.
+  </p>
+  <p>
+    <em>Edge lengths</em> stretches the tiling. The Spectre's edges point in
+    twelve directions, 30° apart. The slider gives the six directions at even
+    multiples of 30° length a, and the other six length b. In the middle,
+    a = b and the tiles are Spectres. Anywhere else, the rare tiles, turned
+    by an odd multiple of 30°, swap their two lengths and become a second
+    shape, so the tiling has two tile shapes but keeps the Spectre's
+    hierarchy. The <em>Common and rare</em> colours show the two shapes. The
+    <a href="https://drbuild.uk/app/aperiodic-pairs/index.html#spectre-family" target="_blank" rel="noopener">aperiodic pairs page</a>
+    says more.
+  </p>
+  <p>
+    Tiles group into supertiles, and those group into larger supertiles,
+    level after level. Turn on <em>Supertiles</em> to see five levels of
+    that hierarchy, drawn thicker as the level rises. <em>Grid</em> lays a
+    triangular grid through a corner of the tiling and marks the other
+    corners it passes through. It fits a few corners, then drifts off,
+    because no grid holds the whole tiling. Click two or three corners to fit
+    a grid through them.
+  </p>
+  <p>
+    Drag to move. Scroll, pinch or double-click to zoom. Turn with the turn
+    buttons, a two-finger twist, a right-drag, Ctrl and drag, or Shift and
+    the arrow keys. A trackpad twist works in Safari. The address bar keeps
+    your place, colours and edges, so you can share a view.
+  </p>
+  <ul>
+    <li><a target="_blank" rel="noopener" href="https://arxiv.org/abs/2305.17743">A chiral aperiodic monotile</a> – the paper, on arXiv</li>
+    <li><a target="_blank" rel="noopener" href="https://cs.uwaterloo.ca/~csk/spectre/">Craig Kaplan's Spectre page</a> – the substitution rules here follow his reference code</li>
+    <li><a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Einstein_problem">Einstein problem</a> – on Wikipedia</li>
+    <li><a target="_blank" rel="noopener" href="https://github.com/davidryan59/davidryan59.github.io/tree/main/app/tiles">Code on GitHub</a> – WebGL, no libraries</li>
+  </ul>
+</div>
+
+<div class="card fail" id="fail" hidden>
+  <p>This page needs WebGL 2, which this browser does not offer.</p>
+</div>
+
+<script src="../engine/tiling-core.js"></script>
+<script src="tiling.js"></script>
+<script src="../engine/edges.js"></script>
+<script src="../engine/map.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var TM = TilingMap, SS = EdgeShapes, SPECTRE = SpectreTiling.SPECTRE, SPECTRE_TP = SpectreTiling.SPECTRE_TP;
+  var oklch = TM.oklch, hex = TM.hex, H3 = Math.sqrt(3) / 2;
+
+  /* ----------------------------------------------------------- stretch */
+
+  // The six edge directions at even multiples of 30 degrees get length a,
+  // the six odd ones length b. A tile at an odd turn has its edges swapped
+  // between the two classes, so it draws with the second outline. The
+  // slider angle t gives a = sin t and b = cos t, as on the Hat page,
+  // scaled so the average tile keeps the Spectre's area.
+  var stretch = 45;
+  try { var sv = parseFloat(localStorage.getItem('spectre-stretch')); if (sv >= 6 && sv <= 84) stretch = sv; } catch (e) {}
+  function cornersAt(a, b) {
+    return SPECTRE_TP.map(function (v) {
+      var P = [v.p[0] + 0.5 * v.p[1], H3 * v.p[1]], R = [v.r[0] + 0.5 * v.r[1], H3 * v.r[1]];
+      var Z = [H3 * R[0] - 0.5 * R[1], 0.5 * R[0] + H3 * R[1]];
+      return [a * P[0] + b * Z[0], a * P[1] + b * Z[1]];
+    });
+  }
+  // Common tiles outnumber rare ones by 4 + sqrt(15) to 1.
+  var RARE = 1 / (5 + Math.sqrt(15));
+  function abAt(d) {
+    var t = d * Math.PI / 180, a = Math.sin(t), b = Math.cos(t);
+    var mean = (1 - RARE) * Math.abs(TM.area(cornersAt(a, b))) + RARE * Math.abs(TM.area(cornersAt(b, a)));
+    var k = Math.sqrt(Math.abs(TM.area(SPECTRE)) / mean);
+    return [a * k, b * k];
+  }
+  var ab = abAt(stretch), handCorners = [cornersAt(ab[0], ab[1]), cornersAt(ab[1], ab[0])];
+  var stretchEl = document.getElementById('stretch'), stretchOut = document.getElementById('stretch-out');
+  var stretchTick = document.getElementById('stretch-spectre');
+  function syncStretch() {
+    var t = stretch * Math.PI / 180, spectre = Math.abs(stretch - 45) < 1e-9;
+    stretchEl.value = String(stretch);
+    stretchOut.textContent = spectre ? 'Tile(1, 1), one shape'
+      : stretch < 45 ? 'a : b = ' + Math.tan(t).toFixed(2) + ' : 1' : 'a : b = 1 : ' + (1 / Math.tan(t)).toFixed(2);
+    stretchTick.classList.toggle('on', spectre);
+  }
+  function applyStretch() {
+    ab = abAt(stretch);
+    handCorners = [cornersAt(ab[0], ab[1]), cornersAt(ab[1], ab[0])];
+    syncStretch();
+    if (!map) return;
+    map.setAB(ab[0], ab[1]);
+    map.shapeChanged();
+    scheduleLimits();
+  }
+
+  /* ------------------------------------------------------------- state */
+
+  function defaults() { return { shape: 'line', bend: 0.15, params: Object.assign({}, SS.DEFAULTS), arrangement: 'alt' }; }
+  var st = defaults();
+  function clampBend(b) { return Math.max(-0.75, Math.min(0.75, b)); }
+  // Sets the shape from a current or old id, and returns whether it knew it.
+  function setShape(id) {
+    var old = SS.OLD[id];
+    if (old) {
+      st.shape = old.shape;
+      if (old.params) Object.assign(st.params, old.params);
+      return true;
+    }
+    if (SS.BY_ID[id]) { st.shape = id; return true; }
+    return false;
+  }
+  try {
+    var saved = JSON.parse(localStorage.getItem('spectre-edges') || '{}');
+    if (saved.params) Object.keys(SS.DEFAULTS).forEach(function (k) { if (typeof saved.params[k] === 'number') st.params[k] = saved.params[k]; });
+    if (typeof saved.bend === 'number') st.bend = clampBend(saved.bend);
+    setShape(saved.shape);
+    // Before version 2 the default was Double, saved whether chosen or not.
+    if (saved.ver === 2 && saved.arrangement === 'S') st.arrangement = 'S';
+  } catch (e) {}
+  function saveEdges() { try { localStorage.setItem('spectre-edges', JSON.stringify(Object.assign({ ver: 2 }, st))); } catch (e) {} }
+
+  function straight() { return st.shape === 'line' || Math.abs(st.bend) < 1e-9; }
+
+  /* The tile shape, as the engine asks for it. Level of detail -1 is the
+     plain polygon, used whenever the bend is under a third of a pixel. */
+  var shape = {
+    hands: 2,
+    handByTurn: true,
+    signature: function () { return (straight() ? 'line' : JSON.stringify(st)) + '|' + stretch; },
+    lodKey: function (res) {
+      var smooth = st.shape === 'curve' || st.shape === 'jigsaw';
+      return res < 0 ? 'straight' : smooth ? 'r' + res : 'poly';
+    },
+    lod: function (k) {
+      if (straight() || Math.abs(st.bend) * k < 0.3) return -1;
+      return k < 6 ? 0 : k < 20 ? 1 : k < 60 ? 2 : 3;
+    },
+    corners: function (hand) { return handCorners[hand ? 1 : 0]; },
+    outline: function (res, hand) { return SS.outline(handCorners[hand ? 1 : 0], st, res); },
+    profile: function (res) {
+      if (res < 0) return null;
+      var p = SS.fitted(st, res), m = SS.mask(SS.spectreSym(st), 14);
+      return p ? { pts: p, sym: [m, m] } : null;
+    }
+  };
+
+  /* ----------------------------------------------------------- colours */
+
+  // Twelve orientations, as turns in 30-degree steps. Even turns are the
+  // six common orientations, odd turns the six rare ones.
+  var classes = [];
+  for (var c = 0; c < 12; c++) classes.push({ turn: c, flip: 0, caption: c * 30 + '°' });
+
+  function ring(n, L, C) {
+    var out = [];
+    for (var i = 0; i < n; i++) out.push(oklch(L, C, 25 + i * 360 / n));
+    return out;
+  }
+  // Each grouping says which group a class falls in, the order the key
+  // shows the groups in, and how many groups fit on one row of the key.
+  var COMMON_FIRST = [0, 2, 4, 6, 8, 10, 1, 3, 5, 7, 9, 11];
+  var groupings = [
+    { id: 'all12', name: '12 colours', n: 12, of: function (k) { return k; }, order: COMMON_FIRST, cols: 6 },
+    { id: 'mod180', name: '6 colours, turn mod 180°', n: 6, of: function (k) { return k % 6; }, order: [0, 2, 4, 1, 3, 5], cols: 3 },
+    { id: 'mod120', name: '4 colours, turn mod 120°', n: 4, of: function (k) { return k % 4; }, order: [0, 2, 1, 3], cols: 2 },
+    { id: 'mod90', name: '3 colours, turn mod 90°', n: 3, of: function (k) { return k % 3; }, cols: 1 },
+    { id: 'mod60', name: '2 colours, turn mod 60°', n: 2, of: function (k) { return k % 2; }, cols: 1 },
+    { id: 'one', name: '1 colour', n: 1, of: function () { return 0; }, cols: 1 }
+  ];
+  // The coloured schemes look the same in light and dark mode. The tiles
+  // fill the screen, and a darker Pastel turned murky. Each tile takes
+  // whichever ink contrasts with it, so dark mode changes only the panels.
+  // Common and rare and Plain keep a dark version, since one of their
+  // colours stands in for the background.
+  var presets = [
+    { id: 'pastel', name: 'Pastel', grouping: 'all12', colours: function () {
+      return classes.map(function (cl, k) {
+        var rare = k % 2 === 1;
+        return oklch(rare ? 0.64 : 0.88, rare ? 0.15 : 0.075, k * 30 + 25);
+      });
+    } },
+    // Ids stay as first published, so old links keep their colours.
+    { id: 'rainbow2', name: 'Rainbow 1', grouping: 'all12', colours: function () {
+      var hues = ring(12, 0.8, 0.12);
+      return classes.map(function (cl, k) { return hues[COMMON_FIRST.indexOf(k)]; });
+    } },
+    { id: 'rainbow', name: 'Rainbow 2', grouping: 'all12', colours: function () {
+      return ring(12, 0.8, 0.12);
+    } },
+    // Black to white in twelve even steps of lightness. Greyscale 1 takes
+    // the six common orientations first, so 0° is black and 330° is white.
+    // Greyscale 2 goes round in turn order, so lightness rises with the turn.
+    { id: 'grey', name: 'Greyscale 1', grouping: 'all12', colours: function () {
+      return classes.map(function (cl, k) { return oklch(COMMON_FIRST.indexOf(k) / 11, 0, 0); });
+    } },
+    { id: 'grey2', name: 'Greyscale 2', grouping: 'all12', colours: function () {
+      return classes.map(function (cl, k) { return oklch(k / 11, 0, 0); });
+    } },
+    { id: 'six', name: 'Six pairs', grouping: 'mod180', colours: function () { return ring(6, 0.82, 0.1); } },
+    { id: 'four', name: 'Four sets', grouping: 'mod120', colours: function () { return ring(4, 0.82, 0.1); } },
+    { id: 'three', name: 'Three sets', grouping: 'mod90', colours: function () { return ring(3, 0.82, 0.1); } },
+    { id: 'wiki', name: 'Common and rare', grouping: 'mod60', colours: function (dark) {
+      return dark ? [hex('#2a2a30'), hex('#67704c')] : [hex('#fdfcf8'), hex('#c1c5a0')];
+    } },
+    { id: 'plain', name: 'Plain', grouping: 'one', colours: function (dark) { return [dark ? hex('#2a2a30') : hex('#fdfcf8')]; } }
+  ];
+
+  /* ------------------------------------------------------------ engine */
+
+  var map = null;
+  map = TM.start({
+    name: 'spectre',
+    worker: 'tiling.js',
+    build: SpectreTiling.build,
+    ab: ab,
+    refB: 1,
+    classMode: 0,
+    classes: classes,
+    groupings: groupings,
+    presets: presets,
+    shape: shape,
+    gridSpacing: function (v) { return [v[0], v[1]]; },
+    tileRadius: function () { return (6 + Math.abs(st.bend)) * Math.max(ab[0], ab[1]); },
+    onReset: function () {
+      st = defaults();
+      stretch = 45;
+      try { localStorage.removeItem('spectre-stretch'); } catch (e) {}
+      saveEdges();
+      syncControls();
+      applyStretch();
+    },
+    onReady: function () { applyStretch(); },
+    hashGet: function () {
+      var h = { e: st.shape };
+      if (Math.abs(stretch - 45) > 1e-9) h.s = String(+stretch.toFixed(2));
+      if (st.shape !== 'line') h.b = st.bend.toFixed(3).replace(/\.?0+$/, '');
+      if (st.shape !== 'line') h.a = st.arrangement;
+      var extra = (SS.BY_ID[st.shape].params || []).map(function (k) { return k + ':' + (+st.params[k].toFixed(3)); });
+      if (extra.length) h.p = extra.join(';');
+      return h;
+    },
+    hashSet: function (q) {
+      if (q.p) q.p.split(';').forEach(function (kv) {
+        var p = kv.split(':');
+        if (SS.DEFAULTS[p[0]] !== undefined && !isNaN(parseFloat(p[1]))) st.params[p[0]] = parseFloat(p[1]);
+      });
+      if (q.s !== undefined && !isNaN(parseFloat(q.s))) stretch = Math.max(6, Math.min(84, parseFloat(q.s)));
+      if (q.e) setShape(q.e);
+      if (q.b !== undefined && !isNaN(parseFloat(q.b))) st.bend = clampBend(parseFloat(q.b));
+      // Links from before Single became the default carry no a= for Double.
+      if (q.a === 'alt' || q.a === 'S') st.arrangement = q.a;
+      else if (q.e && q.e !== 'line') st.arrangement = 'S';
+      syncControls();
+      applyStretch();
+    }
+  });
+  if (!map) return;
+
+  /* ---------------------------------------------------------- controls */
+
+  var shapeEl = document.getElementById('shape');
+  shapeEl.innerHTML = SS.SHAPES.map(function (s) { return '<option value="' + s.id + '">' + s.name + '</option>'; }).join('');
+  var bendEl = document.getElementById('bend'), bendOut = document.getElementById('bend-out');
+  var zeroEl = document.getElementById('bend-zero'), bendBox = document.getElementById('bend-box');
+  var limitsEl = document.getElementById('limits'), limitNote = document.getElementById('limit-note');
+  var sliders = {};
+  Array.prototype.forEach.call(document.querySelectorAll('[data-param]'), function (el) {
+    sliders[el.dataset.param] = { box: el, input: el.querySelector('input'), out: el.querySelector('output') };
+  });
+  var arrEls = document.querySelectorAll('input[name="arrangement"]');
+
+  // Sticky stops: a slider near one of its data-stops snaps to it. The
+  // pull reaches 4% of the slider's range either side.
+  function snap(input, v) {
+    var stops = (input.dataset.stops || '').split(',').filter(Boolean).map(parseFloat);
+    var reach = 0.04 * (parseFloat(input.max) - parseFloat(input.min));
+    stops.forEach(function (x) { if (Math.abs(v - x) < reach) v = x; });
+    return v;
+  }
+  function signed(x) { return (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x).toFixed(2); }
+  function describe(k) {
+    var v = st.params[k];
+    if (k === 'waves') return String(v);
+    if (k === 'peak') return (st.arrangement === 'alt' ? v : v / 2).toFixed(2) + ' of the edge';
+    if (k === 'rise' || k === 'fall') return v.toFixed(2) + ' of the hump';
+    return v.toFixed(2);
+  }
+
+  function syncControls() {
+    var def = SS.BY_ID[st.shape];
+    shapeEl.value = st.shape;
+    // Line has no height and no arrangement to set.
+    bendBox.hidden = document.getElementById('arrangement').hidden = st.shape === 'line';
+    bendEl.value = String(st.bend);
+    bendOut.textContent = signed(st.bend);
+    zeroEl.classList.toggle('on', straight());
+    Object.keys(sliders).forEach(function (k) {
+      var on = def.params.indexOf(k) >= 0;
+      sliders[k].box.hidden = !on;
+      if (on) { sliders[k].input.value = String(st.params[k]); sliders[k].out.textContent = describe(k); }
+    });
+    Array.prototype.forEach.call(arrEls, function (r) { r.checked = r.value === st.arrangement; });
+    scheduleLimits();
+  }
+
+  // Where tiles start to overlap, shown under the bend slider. Worked out
+  // shortly after the shape or its settings change, not on every bend.
+  var limitTimer = 0, limitSig = '';
+  function scheduleLimits() {
+    if (st.shape === 'line') return;
+    var sig = st.shape + st.arrangement + JSON.stringify(st.params) + '|' + stretch;
+    if (sig === limitSig) return;
+    clearTimeout(limitTimer);
+    limitTimer = setTimeout(function () {
+      limitSig = sig;
+      // Both shapes, when the edge lengths differ: the tighter limit wins.
+      var L = SS.limitsBy(function (b) {
+        var trial = { shape: st.shape, bend: b, params: st.params, arrangement: st.arrangement };
+        return handCorners.some(function (cs) { return TM.crossings(SS.outline(cs, trial, 2), true).length > 0; });
+      });
+      var pct = function (x) { return ((x + 0.75) / 1.5 * 100).toFixed(1) + '%'; };
+      var red = 'var(--danger)', ok = 'var(--ring)';
+      var lo = L[1] === null ? -0.75 : L[1], hi = L[0] === null ? 0.75 : L[0];
+      limitsEl.style.background = 'linear-gradient(to right, ' + red + ' 0, ' + red + ' ' + pct(lo) + ', ' + ok + ' ' +
+        pct(lo) + ', ' + ok + ' ' + pct(hi) + ', ' + red + ' ' + pct(hi) + ', ' + red + ' 100%)';
+      // The note shows only when tiles collide somewhere on the slider.
+      limitNote.hidden = L[0] === null && L[1] === null;
+      limitNote.textContent = limitNote.hidden ? ''
+        : 'Tiles collide beyond ' + (L[0] !== null ? signed(L[0]) : 'none') + ' and ' + (L[1] !== null ? signed(L[1]) : 'none') + '.';
+    }, 150);
+  }
+
+  function edgesChanged() {
+    saveEdges();
+    syncControls();
+    map.shapeChanged();
+  }
+  // At the opening zoom a height of 0.15 moves an edge about one pixel, so
+  // the first curved edge zooms in far enough to see it.
+  var zoomedForCurves = false;
+  function zoomForCurves() {
+    if (!zoomedForCurves && map.scale() < 14) { zoomedForCurves = true; map.zoomTo(20); }
+  }
+  function setBend(v, final) {
+    st.bend = v;
+    bendOut.textContent = signed(v);
+    zeroEl.classList.toggle('on', straight());
+    map.shapeChanged();
+    if (final) { bendEl.value = String(v); saveEdges(); map.changed(); }
+  }
+
+  shapeEl.addEventListener('change', function () {
+    var def = SS.BY_ID[shapeEl.value];
+    st.shape = def.id;
+    if (def.set) Object.keys(def.set).forEach(function (k) { st.params[k] = def.set[k]; });
+    if (st.shape !== 'line') {
+      // A new shape at zero height would look the same, so it gets a height.
+      if (straight()) st.bend = 0.15;
+      zoomForCurves();
+    }
+    edgesChanged();
+  });
+  bendEl.addEventListener('input', function () {
+    var v = snap(bendEl, parseFloat(bendEl.value));
+    if (v !== 0) zoomForCurves();
+    setBend(v, false);
+  });
+  bendEl.addEventListener('change', function () { setBend(st.bend, true); });
+  // Two ways back to straight edges: the 0 under the slider, or a double
+  // click on the slider.
+  zeroEl.addEventListener('click', function () { setBend(0, true); });
+  bendEl.addEventListener('dblclick', function () { setBend(0, true); });
+  Object.keys(sliders).forEach(function (k) {
+    sliders[k].input.addEventListener('input', function () {
+      st.params[k] = snap(sliders[k].input, parseFloat(sliders[k].input.value));
+      // The trapezium's two sloping sides must fit inside one hump.
+      if (k === 'rise' && st.params.rise + st.params.fall > 1) st.params.fall = +(1 - st.params.rise).toFixed(2);
+      if (k === 'fall' && st.params.rise + st.params.fall > 1) st.params.rise = +(1 - st.params.fall).toFixed(2);
+      edgesChanged();
+    });
+  });
+  Array.prototype.forEach.call(arrEls, function (r) {
+    r.addEventListener('change', function () { if (r.checked) { st.arrangement = r.value; edgesChanged(); } });
+  });
+
+  stretchEl.addEventListener('input', function () {
+    var v = parseFloat(stretchEl.value);
+    // A sticky stop at the Spectre itself.
+    if (Math.abs(v - 45) < 1.5) v = 45;
+    stretch = v;
+    applyStretch();
+  });
+  stretchEl.addEventListener('change', function () {
+    try { localStorage.setItem('spectre-stretch', String(stretch)); } catch (e) {}
+    map.changed();
+  });
+  stretchTick.addEventListener('click', function () {
+    stretch = 45;
+    applyStretch();
+    try { localStorage.removeItem('spectre-stretch'); } catch (e) {}
+    map.changed();
+  });
+
+  syncStretch();
+  syncControls();
+})();
+</script>
+</body>
+</html>
