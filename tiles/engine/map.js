@@ -519,7 +519,11 @@
     '  float le = dot(pow(u_edge, vec3(2.2)), wt), la = dot(pow(u_edgeAlt, vec3(2.2)), wt);',
     '  bool alt = (max(lf, la) + 0.05) / (min(lf, la) + 0.05) > (max(lf, le) + 0.05) / (min(lf, le) + 0.05);',
     '  vec3 col = mix(fill, alt ? u_edgeAlt : u_edge, cov[0] * u_edgeAlpha);',
-    '  for (int k = 1; k < 6; k++) col = mix(col, alt ? u_lineAlt : u_line, cov[k]);',
+    // Supertile lines are shared by the tiles on both sides, so they take one
+    // ink for the whole frame (see lineInk), not each tile's own choice;
+    // otherwise a line between a light and a dark tile draws half black and
+    // half white.
+    '  for (int k = 1; k < 6; k++) col = mix(col, u_line, cov[k]);',
     // Grid dots: a disc on each corner of this tile that sits on a grid.
     '  if (u_gridOn != 0) {',
     '    float t = float(turn) * u_turnStep;',
@@ -1219,6 +1223,24 @@
       var l = lum(c);
       return contrast(l, lum(theme.edgeAlt)) > contrast(l, lum(theme.edge));
     }
+    /* The ink for supertile (and Krinkle wedge) lines. A tile edge is thin
+       and each tile may draw its own side in its own ink, but a supertile
+       line is several pixels wide and straddles two tiles, so it must be
+       one colour along its whole length: the theme's line ink or the other
+       one, whichever contrasts better with the colours on show, on average
+       over the distinct colours (geometric mean of contrast ratios). */
+    function lineInk(cols) {
+      var seen = {}, sa = 0, sb = 0, la = lum(theme.line), lb = lum(theme.lineAlt);
+      cols.forEach(function (c) {
+        if (!c) return;
+        var key = c[0].toFixed(3) + ',' + c[1].toFixed(3) + ',' + c[2].toFixed(3);
+        if (seen[key]) return;
+        seen[key] = 1;
+        var l = lum(c);
+        sa += Math.log(contrast(l, la)); sb += Math.log(contrast(l, lb));
+      });
+      return sb > sa ? theme.lineAlt : theme.line;
+    }
     function inkFor(c) { var k = inkNow().colour; if (k) return k; return inkAlt(c) ? theme.edgeAlt : theme.edge; }
 
     // A key with more groups than STRIP shows them as one strip of colour,
@@ -1680,7 +1702,8 @@
       if (EXTRA) { gl.uniform1i(U.u_ancLevel, probe.ancLevel); gl.uniform1i(U.u_censusN, probe.censusN); gl.uniform1f(U.u_grainMul, probe.grainMul); }
       gl.uniform1f(U.u_turnStep, turnStep());
       paletteData.fill(0);
-      classColours().slice(0, PALETTE).forEach(function (c, i) { paletteData.set(c, 4 * i); });
+      var shown = classColours().slice(0, PALETTE);
+      shown.forEach(function (c, i) { paletteData.set(c, 4 * i); });
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, paletteTex);
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, PALETTE, 1, gl.RGBA, gl.FLOAT, paletteData);
@@ -1688,9 +1711,10 @@
       gl.uniform1i(U.u_levels, outlines ? 1 : 0);
       var inkc = inkNow();
       gl.uniform3fv(U.u_edge, inkc.colour || theme.edge);
-      gl.uniform3fv(U.u_line, theme.line);
+      var linec = lineInk(shown);
+      gl.uniform3fv(U.u_line, linec);
       gl.uniform3fv(U.u_edgeAlt, inkc.colour || theme.edgeAlt);
-      gl.uniform3fv(U.u_lineAlt, theme.lineAlt);
+      gl.uniform3fv(U.u_lineAlt, linec);
       gl.uniform3fv(U.u_hot, theme.hot);
       gl.uniform3fv(U.u_hot2, theme.hot2);
       gl.uniform1i(U.u_handTurn, cfg.shape.handByTurn ? 1 : 0);
