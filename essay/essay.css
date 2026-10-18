@@ -130,3 +130,34 @@ body.phone:not(.phone-portrait).essay-on .legend { bottom: max(8px, env(safe-are
 body.phone:not(.phone-portrait) .essay-head { min-height: 44px; }
 body.phone:not(.phone-portrait) .essay-dots button { width: 12px; height: 12px; }
 body.phone:not(.phone-portrait) .essay-fold { min-width: 44px; min-height: 44px; }
+
+/* Tablets (601-1279px wide, not body.phone) in essay mode: the map keeps
+   room of its own. The title card drops its one-line description and the
+   Options card folds behind its button (essay.js folds it on entering the
+   essay and restores it on leaving). */
+@media (min-width: 601px) and (max-width: 1279px) {
+  body.essay-on:not(.phone) .title p.hint { display: none; }
+  body.essay-on:not(.phone) .options { width: auto; }
+  body.essay-on:not(.phone) .options:not(.folded) { width: 16.5rem; }
+  body.essay-on:not(.phone) .options .head { display: block; }
+  body.essay-on:not(.phone) .options:not(.folded) .body { margin-top: 0.45rem; }
+  body.essay-on:not(.phone) .options.folded .body { display: none; }
+}
+/* Portrait tablets: a side panel would leave the map a narrow column, so
+   the essay sits along the bottom as on narrow screens, its text in a
+   readable column, and the map gets the full width above it. */
+@media (min-width: 721px) and (max-width: 1100px) and (orientation: portrait) {
+  :root { --sheet-h: 42vh; }
+  body:not(.phone) .essay { top: auto; left: 0; width: auto; height: var(--sheet-h); border-left: none; border-top: 1px solid var(--rule);
+           border-radius: 14px 14px 0 0; box-shadow: 0 -6px 24px rgba(0,0,0,0.15); }
+  body:not(.phone) .essay.folded { height: auto; left: 0; right: 0; width: auto; border-radius: 14px 14px 0 0; bottom: 0; top: auto; }
+  body:not(.phone) .essay-head { padding: 0.5rem max(0.8rem, calc(50vw - 340px)); }
+  body:not(.phone) .essay-scroll { padding: 0 max(1.3rem, calc(50vw - 330px)) 30vh; }
+  body.essay-on:not(.phone) .top { right: max(12px, env(safe-area-inset-right)); }
+  body.essay-on:not(.phone) .options { max-height: calc(100dvh - var(--sheet-h) - 24px); }
+  body.essay-on:not(.phone) .zoom { right: max(12px, env(safe-area-inset-right)); bottom: calc(var(--sheet-h) + 12px); }
+  body.essay-on:not(.phone) .legend { bottom: calc(var(--sheet-h) + 12px); }
+  body.essay-on.essay-folded:not(.phone) .zoom, body.essay-on.essay-folded:not(.phone) .legend { bottom: 64px; }
+  body.essay-on:not(.phone) .stats, body.essay-on:not(.phone) .diff { right: 70px; bottom: calc(var(--sheet-h) + 12px); }
+  body.essay-on:not(.phone) .diff { top: auto; transform: none; }
+}

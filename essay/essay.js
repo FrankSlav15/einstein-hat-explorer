@@ -64,7 +64,18 @@
   }).join('');
 
   /* ---------------------------------------------------------- scenes */
-  function narrow() { return window.innerWidth <= 720; }
+  // The essay sits along the bottom on narrow screens and portrait
+  // tablets, as essay.css lays it out; beside the map otherwise.
+  var bottomMq = window.matchMedia('(max-width: 720px), (min-width: 721px) and (max-width: 1100px) and (orientation: portrait)');
+  function narrow() { return bottomMq.matches; }
+  // Tablet widths (not phones): Options folds while reading (essay.css).
+  function tablet() { return !document.body.classList.contains('phone') && window.innerWidth > 600 && window.innerWidth < 1280; }
+  var optionsEl = document.querySelector('.options'), optionsFold = document.getElementById('options-fold'), weFolded = false;
+  function foldOptions(f) {
+    if (!optionsEl) return;
+    optionsEl.classList.toggle('folded', f);
+    if (optionsFold) optionsFold.setAttribute('aria-expanded', !f);
+  }
   function offset() {
     if (!on || panel.classList.contains('folded')) return [0, 0];
     var r = panel.getBoundingClientRect();
@@ -124,17 +135,21 @@
     if (performance.now() < quietUntil) return;
     pending = setTimeout(function () { if (performance.now() >= quietUntil) activate(pick()); }, 180);
   }, { passive: true });
+  // Activate before scrolling: the old section's figure shrinks when it
+  // stops being active, which moves the new one up, so the scroll target
+  // has to be measured after.
   sections.forEach(function (el, k) {
     el.addEventListener('click', function (e) {
       if (e.target.closest('a')) return;
-      if (k !== active) scrollTo(k);
+      var was = active;
       activate(k, { force: true });
+      if (k !== was) scrollTo(k);
     });
     el.addEventListener('keydown', function (e) { if (e.key === 'Enter') activate(k, { force: true }); });
   });
   dots.addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return;
-    var k = +b.dataset.i; scrollTo(k); activate(k, { force: true });
+    var k = +b.dataset.i; activate(k, { force: true }); scrollTo(k);
   });
 
   /* ---------------------------------------------------------- toggle */
@@ -147,9 +162,12 @@
     // The article's colours while reading; Explore gets its own choice back.
     if (map.essayColours) map.essayColours(on);
     if (!on && window.probeUI) window.probeUI.schemeChanged();
+    // Options opens again in Explore if the essay folded it, on screens
+    // where Explore shows it open.
+    if (!on && weFolded) { weFolded = false; if (window.innerWidth > 640) foldOptions(false); }
     toggle.title = on ? 'Back to free Explore mode' : 'Read the article alongside the map';
     if (on) {
-      if (narrow()) document.querySelector('.options').classList.add('folded');
+      if ((narrow() || tablet()) && optionsEl && !optionsEl.classList.contains('folded')) { foldOptions(true); weFolded = true; }
       var i = opts && opts.index !== undefined ? opts.index : Math.max(0, active);
       active = -1;
       requestAnimationFrame(function () {
@@ -170,8 +188,8 @@
   });
   document.addEventListener('keydown', function (e) {
     if (!on || e.target.closest('input, select, textarea')) return;
-    if (e.key === 'PageDown' || (e.key === 'j' && !e.ctrlKey)) { e.preventDefault(); var n = Math.min(sections.length - 1, active + 1); scrollTo(n); activate(n); }
-    if (e.key === 'PageUp' || (e.key === 'k' && !e.ctrlKey)) { e.preventDefault(); var p = Math.max(0, active - 1); scrollTo(p); activate(p); }
+    if (e.key === 'PageDown' || (e.key === 'j' && !e.ctrlKey)) { e.preventDefault(); var n = Math.min(sections.length - 1, active + 1); activate(n); scrollTo(n); }
+    if (e.key === 'PageUp' || (e.key === 'k' && !e.ctrlKey)) { e.preventDefault(); var p = Math.max(0, active - 1); activate(p); scrollTo(p); }
   });
 
   /* ---------------------------------------------------------- phone sheet */
@@ -190,7 +208,7 @@
   setSnap('half');
   function step(d) {
     var n = Math.max(0, Math.min(sections.length - 1, active + d));
-    if (n !== active) { scrollTo(n); activate(n); }
+    if (n !== active) { activate(n); scrollTo(n); }
   }
   document.getElementById('essay-prev').addEventListener('click', function () { step(-1); });
   document.getElementById('essay-next').addEventListener('click', function () { step(1); });
@@ -220,7 +238,7 @@
     on: function () { return on; },
     index: function () { return Math.max(0, active); },
     set: setOn,
-    go: function (i, instant) { if (!on) setOn(true, { index: i, instant: instant }); else { scrollTo(i); activate(i, { force: true, instant: instant }); } },
+    go: function (i, instant) { if (!on) setOn(true, { index: i, instant: instant }); else { activate(i, { force: true, instant: instant }); scrollTo(i); } },
     fromHash: function (i) { if (!on) setOn(true, { index: isNaN(i) ? 0 : i, instant: true }); }
   };
 })();
